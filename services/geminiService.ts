@@ -2,82 +2,54 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 /**
- * Helper to ensure API Key is present and create a fresh instance
+ * Inisialisasi AI menggunakan API_KEY dari environment variable.
  */
-const getAIInstance = async () => {
-  // Cek apakah ada di process.env (Vercel Build-time)
-  let apiKey = process.env.API_KEY;
-
-  // Cek apakah ada di window.aistudio (Vercel/AI Studio Runtime)
-  if (!apiKey || apiKey === 'undefined' || apiKey === '') {
-    if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
-      const hasKey = await window.aistudio.hasSelectedApiKey();
-      if (!hasKey) {
-        throw new Error('API_KEY_MISSING');
-      }
-      // Jika sudah dipilih, variabel ini akan terinjeksi otomatis ke process.env.API_KEY oleh platform
-      apiKey = process.env.API_KEY;
-    }
-  }
-
+const getAI = () => {
+  const apiKey = process.env.API_KEY;
   if (!apiKey || apiKey === 'undefined' || apiKey === '') {
     throw new Error('API_KEY_MISSING');
   }
-
   return new GoogleGenAI({ apiKey });
 };
 
 /**
- * Helper to handle Gemini API errors
+ * Menangani error dari Gemini API
  */
 const handleGeminiError = (error: any) => {
-  console.error("Gemini API Error Detail:", error);
-  
+  console.error("Gemini API Error:", error);
   const msg = error.message || '';
   
-  if (msg.includes('API_KEY_INVALID') || msg.includes('API key not found') || msg === 'API_KEY_MISSING') {
+  if (msg.includes('API key not found') || msg.includes('API_KEY_INVALID')) {
     throw new Error('API_KEY_MISSING');
   }
-  
-  if (msg.includes('Requested entity was not found.')) {
-    // Ini biasanya berarti model tidak tersedia atau API belum diaktifkan di Google Cloud
-    throw new Error('MODEL_NOT_FOUND');
+  if (msg.includes('Requested entity was not found')) {
+    // Error ini biasanya berarti model Gemini 3 belum di-whitelist untuk API Key Anda
+    throw new Error('MODEL_NOT_READY');
   }
-
   if (msg.includes('429')) {
-    throw new Error('QUOTA_EXHAUSTED');
+    throw new Error('QUOTA_EXCEEDED');
   }
-  
   throw error;
 };
 
-/**
- * Chat Stream for interactive assistant (GPT-style)
- */
 export const startAIChat = async (systemInstruction: string) => {
   try {
-    const ai = await getAIInstance();
+    const ai = getAI();
     return ai.chats.create({
       model: 'gemini-3-flash-preview',
-      config: {
-        systemInstruction,
-        temperature: 0.7,
-      },
+      config: { systemInstruction, temperature: 0.7 },
     });
   } catch (error) {
     return handleGeminiError(error);
   }
 };
 
-/**
- * Analyzes CP content into specific Materi and TP
- */
 export const analyzeCPToTP = async (cpContent: string, elemen: string, fase: string, kelas: string) => {
   try {
-    const ai = await getAIInstance();
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Pecah teks CP menjadi materi dan TP linear. Elemen: ${elemen}. CP: "${cpContent}"`,
+      contents: `Pecah CP menjadi materi dan TP linear untuk SD Kelas ${kelas}. Elemen: ${elemen}. CP: "${cpContent}"`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -100,12 +72,9 @@ export const analyzeCPToTP = async (cpContent: string, elemen: string, fase: str
   }
 };
 
-/**
- * Completes ATP details
- */
 export const completeATPDetails = async (tp: string, materi: string, kelas: string) => {
   try {
-    const ai = await getAIInstance();
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Lengkapi ATP SD Kelas ${kelas}. Materi: ${materi}, TP: ${tp}`,
@@ -132,12 +101,9 @@ export const completeATPDetails = async (tp: string, materi: string, kelas: stri
   }
 };
 
-/**
- * Recommend pedagogy
- */
 export const recommendPedagogy = async (tp: string, alurAtp: string, materi: string, kelas: string) => {
   try {
-    const ai = await getAIInstance();
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Rekomendasi model pembelajaran untuk TP: "${tp}" SD Kelas ${kelas}`,
@@ -159,20 +125,12 @@ export const recommendPedagogy = async (tp: string, alurAtp: string, materi: str
   }
 };
 
-/**
- * Generates RPM content with strict vertical list formatting
- */
 export const generateRPMContent = async (tp: string, materi: string, kelas: string, praktikPedagogis: string, alokasiWaktu: string, jumlahPertemuan: number = 1) => {
   try {
-    const ai = await getAIInstance();
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Susun Rencana Pembelajaran Mendalam (RPM) SD Kelas ${kelas} untuk ${jumlahPertemuan} kali pertemuan. 
-      Tujuan: ${tp}. Materi: ${materi}. Model: ${praktikPedagogis}.
-      
-      ATURAN FORMAT WAJIB:
-      1. Field 'kegiatanAwal', 'kegiatanInti' dan 'kegiatanPenutup' WAJIB menggunakan format daftar bernomor (1., 2., 3., dst).
-      2. Setiap poin kegiatan harus dipisahkan oleh baris baru.`,
+      contents: `Susun RPM SD Kelas ${kelas} (${jumlahPertemuan} sesi). Tujuan: ${tp}. Materi: ${materi}. Model: ${praktikPedagogis}. Gunakan format daftar bernomor vertikal.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -196,15 +154,12 @@ export const generateRPMContent = async (tp: string, materi: string, kelas: stri
   }
 };
 
-/**
- * Generates Assessment Details (Awal, Proses, Akhir)
- */
 export const generateAssessmentDetails = async (tp: string, materi: string, kelas: string, narasiAwal: string, narasiProses: string, narasiAkhir: string) => {
   try {
-    const ai = await getAIInstance();
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
-      contents: `Buat rubrik asesmen lengkap 3 BAGIAN (AWAL, PROSES, AKHIR) untuk TP: "${tp}" materi "${materi}" SD Kelas ${kelas}.`,
+      contents: `Buat rubrik asesmen lengkap 3 BAGIAN (AWAL, PROSES, AKHIR) untuk TP: "${tp}" SD Kelas ${kelas}.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -226,12 +181,10 @@ export const generateAssessmentDetails = async (tp: string, materi: string, kela
                     level3: { type: Type.STRING },
                     level2: { type: Type.STRING },
                     level1: { type: Type.STRING }
-                  },
-                  required: ['aspek', 'level4', 'level3', 'level2', 'level1']
+                  }
                 }
               }
-            },
-            required: ['kategori', 'teknik', 'bentuk', 'instruksi', 'rubrikDetail']
+            }
           }
         }
       }
@@ -242,15 +195,12 @@ export const generateAssessmentDetails = async (tp: string, materi: string, kela
   }
 };
 
-/**
- * Generates LKPD Content synchronized with RPM
- */
 export const generateLKPDContent = async (rpm: any) => {
   try {
-    const ai = await getAIInstance();
+    const ai = getAI();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: `Susun LKPD untuk SD Kelas ${rpm.kelas}. Topik: ${rpm.materi}. Tujuan: ${rpm.tujuanPembelajaran}.`,
+      contents: `Susun LKPD untuk SD Kelas ${rpm.kelas}. Topik: ${rpm.materi}.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -261,8 +211,7 @@ export const generateLKPDContent = async (rpm: any) => {
             langkahKerja: { type: Type.STRING },
             tugasMandiri: { type: Type.STRING },
             refleksi: { type: Type.STRING }
-          },
-          required: ['petunjuk', 'materiRingkas', 'langkahKerja', 'tugasMandiri', 'refleksi']
+          }
         }
       }
     });
