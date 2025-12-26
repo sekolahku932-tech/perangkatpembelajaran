@@ -9,6 +9,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+    <script>
+        // Polyfill untuk mendukung process.env di browser tanpa bundler
+        window.process = window.process || { env: {} };
+    </script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -17,12 +21,10 @@
 
         /* PERBAIKAN TOTAL MODE CETAK */
         @media print {
-            /* 1. Sembunyikan elemen navigasi dan UI aplikasi */
             header, aside, .no-print, button, nav, [role="navigation"], .fixed, .absolute.top-6.right-6 {
                 display: none !important;
             }
 
-            /* 2. Reset Layout untuk Multi-page (Penting!) */
             html, body, #root, main {
                 height: auto !important;
                 min-height: 0 !important;
@@ -35,20 +37,17 @@
                 width: 100% !important;
             }
 
-            /* Hapus pembatasan tinggi pada kontainer utama di App.tsx */
             div.flex.h-screen, div.flex-1.overflow-hidden, div.overflow-y-auto {
                 height: auto !important;
                 overflow: visible !important;
                 display: block !important;
             }
 
-            /* 3. Atur Margin Kertas */
             @page {
                 margin: 1.5cm;
                 size: auto;
             }
 
-            /* 4. Optimasi Tabel */
             table {
                 page-break-inside: auto;
                 width: 100% !important;
@@ -62,7 +61,6 @@
                 display: table-header-group !important;
             }
             
-            /* 5. Estetika Cetak */
             body {
                 font-size: 10pt;
                 color: black !important;

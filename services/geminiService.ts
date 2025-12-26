@@ -5,30 +5,51 @@ import { GoogleGenAI, Type } from "@google/genai";
  * Helper to handle Gemini API errors
  */
 const handleGeminiError = (error: any) => {
-  console.error("Gemini API Error:", error);
-  if (error.message?.includes('Requested entity was not found.')) {
-    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
-      window.aistudio.openSelectKey();
-    }
+  console.error("Gemini API Error Detail:", error);
+  
+  if (error.message?.includes('API_KEY_INVALID') || error.message?.includes('API key not found')) {
+    throw new Error('API_KEY_MISSING');
   }
+  
+  if (error.message?.includes('Requested entity was not found.')) {
+    throw new Error('MODEL_NOT_FOUND');
+  }
+
   if (error.message?.includes('429')) {
     throw new Error('QUOTA_EXHAUSTED');
   }
+  
   throw error;
+};
+
+/**
+ * Helper to ensure API Key is present
+ */
+const getAIInstance = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey || apiKey === 'undefined') {
+    console.error("CRITICAL: API_KEY is not defined in environment variables.");
+    throw new Error('API_KEY_MISSING');
+  }
+  return new GoogleGenAI({ apiKey });
 };
 
 /**
  * Chat Stream for interactive assistant (GPT-style)
  */
 export const startAIChat = (systemInstruction: string) => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  return ai.chats.create({
-    model: 'gemini-3-flash-preview',
-    config: {
-      systemInstruction,
-      temperature: 0.7,
-    },
-  });
+  try {
+    const ai = getAIInstance();
+    return ai.chats.create({
+      model: 'gemini-3-flash-preview',
+      config: {
+        systemInstruction,
+        temperature: 0.7,
+      },
+    });
+  } catch (error) {
+    return handleGeminiError(error);
+  }
 };
 
 /**
@@ -36,7 +57,7 @@ export const startAIChat = (systemInstruction: string) => {
  */
 export const analyzeCPToTP = async (cpContent: string, elemen: string, fase: string, kelas: string) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAIInstance();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Pecah teks CP menjadi materi dan TP linear. Elemen: ${elemen}. CP: "${cpContent}"`,
@@ -67,7 +88,7 @@ export const analyzeCPToTP = async (cpContent: string, elemen: string, fase: str
  */
 export const completeATPDetails = async (tp: string, materi: string, kelas: string) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAIInstance();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Lengkapi ATP SD Kelas ${kelas}. Materi: ${materi}, TP: ${tp}`,
@@ -99,7 +120,7 @@ export const completeATPDetails = async (tp: string, materi: string, kelas: stri
  */
 export const recommendPedagogy = async (tp: string, alurAtp: string, materi: string, kelas: string) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAIInstance();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Rekomendasi model pembelajaran untuk TP: "${tp}" SD Kelas ${kelas}`,
@@ -126,7 +147,7 @@ export const recommendPedagogy = async (tp: string, alurAtp: string, materi: str
  */
 export const generateRPMContent = async (tp: string, materi: string, kelas: string, praktikPedagogis: string, alokasiWaktu: string, jumlahPertemuan: number = 1) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAIInstance();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Susun Rencana Pembelajaran Mendalam (RPM) SD Kelas ${kelas} untuk ${jumlahPertemuan} kali pertemuan. 
@@ -165,7 +186,7 @@ export const generateRPMContent = async (tp: string, materi: string, kelas: stri
  */
 export const generateAssessmentDetails = async (tp: string, materi: string, kelas: string, narasiAwal: string, narasiProses: string, narasiAkhir: string) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = getAIInstance();
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
       contents: `Buat rubrik asesmen lengkap 3 BAGIAN (AWAL, PROSES, AKHIR) untuk TP: "${tp}" materi "${materi}" SD Kelas ${kelas}.
@@ -218,9 +239,7 @@ export const generateAssessmentDetails = async (tp: string, materi: string, kela
  */
 export const generateLKPDContent = async (rpm: any) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    
-    // Memberikan konteks lengkap RPM agar LKPD sinkron
+    const ai = getAIInstance();
     const prompt = `Susun konten Lembar Kerja Peserta Didik (LKPD) untuk SD Kelas ${rpm.kelas}.
     
     REFERENSI UTAMA DARI RENCANA PEMBELAJARAN (RPM):

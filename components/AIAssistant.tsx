@@ -1,12 +1,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, X, Send, User, Bot, Loader2, Maximize2, Minimize2, MessageSquare } from 'lucide-react';
+import { Sparkles, X, Send, User, Bot, Loader2, Maximize2, Minimize2, MessageSquare, AlertCircle } from 'lucide-react';
 import { startAIChat } from '../services/geminiService';
 import { User as UserType } from '../types';
 
 interface Message {
   role: 'user' | 'model';
   text: string;
+  isError?: boolean;
 }
 
 interface AIAssistantProps {
@@ -48,7 +49,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
       const result = await chatInstance.current.sendMessageStream({ message: userMessage });
       let fullText = '';
       
-      // Menambahkan placeholder untuk model response
       setMessages(prev => [...prev, { role: 'model', text: '' }]);
 
       for await (const chunk of result) {
@@ -59,8 +59,18 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
           return newMessages;
         });
       }
-    } catch (e) {
-      setMessages(prev => [...prev, { role: 'model', text: 'Maaf, sistem sedang sibuk. Silakan coba sesaat lagi.' }]);
+    } catch (e: any) {
+      let errorText = 'Maaf, terjadi kendala teknis. Silakan coba sesaat lagi.';
+      
+      if (e.message === 'API_KEY_MISSING') {
+        errorText = 'Kunci API Gemini belum terkonfigurasi di Vercel. Harap tambahkan API_KEY di Settings > Environment Variables dan lakukan Redeploy.';
+      } else if (e.message === 'MODEL_NOT_FOUND') {
+        errorText = 'Model Gemini tidak ditemukan atau API "Generative Language" belum diaktifkan di Google Cloud Console untuk project Anda.';
+      } else if (e.message === 'QUOTA_EXHAUSTED') {
+        errorText = 'Batas penggunaan API gratis Anda telah tercapai untuk saat ini. Silakan coba lagi nanti.';
+      }
+
+      setMessages(prev => [...prev, { role: 'model', text: errorText, isError: true }]);
     } finally {
       setIsLoading(false);
     }
@@ -82,7 +92,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
 
   return (
     <div className={`fixed bottom-6 right-6 w-full max-w-[400px] bg-white rounded-[32px] shadow-2xl border border-slate-200 overflow-hidden flex flex-col z-[200] transition-all ${isMinimized ? 'h-[72px]' : 'h-[600px] max-h-[80vh]'}`}>
-      {/* Header */}
       <div className="p-5 bg-slate-900 text-white flex justify-between items-center shrink-0">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-indigo-500 rounded-xl shadow-lg">
@@ -108,15 +117,14 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
 
       {!isMinimized && (
         <>
-          {/* Messages */}
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50 no-scrollbar">
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
                 <div className={`flex gap-3 max-w-[85%] ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                  <div className={`w-8 h-8 rounded-xl shrink-0 flex items-center justify-center shadow-sm ${m.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-white text-slate-900 border border-slate-200'}`}>
-                    {m.role === 'user' ? <User size={16}/> : <Bot size={16}/>}
+                  <div className={`w-8 h-8 rounded-xl shrink-0 flex items-center justify-center shadow-sm ${m.role === 'user' ? 'bg-indigo-600 text-white' : m.isError ? 'bg-red-100 text-red-600' : 'bg-white text-slate-900 border border-slate-200'}`}>
+                    {m.role === 'user' ? <User size={16}/> : m.isError ? <AlertCircle size={16}/> : <Bot size={16}/>}
                   </div>
-                  <div className={`p-4 rounded-2xl text-[11px] leading-relaxed shadow-sm ${m.role === 'user' ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-white text-slate-800 rounded-tl-none border border-slate-100'}`}>
+                  <div className={`p-4 rounded-2xl text-[11px] leading-relaxed shadow-sm ${m.role === 'user' ? 'bg-indigo-600 text-white rounded-tr-none' : m.isError ? 'bg-red-50 text-red-700 border border-red-100 rounded-tl-none' : 'bg-white text-slate-800 rounded-tl-none border border-slate-100'}`}>
                     {m.text || (isLoading && i === messages.length - 1 ? <Loader2 size={14} className="animate-spin opacity-50"/> : '')}
                   </div>
                 </div>
@@ -124,7 +132,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
             ))}
           </div>
 
-          {/* Input */}
           <div className="p-4 bg-white border-t border-slate-100">
             <div className="relative flex items-center">
               <input 
