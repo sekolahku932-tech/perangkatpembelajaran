@@ -2,20 +2,49 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 /**
+ * Helper to ensure API Key is present and create a fresh instance
+ */
+const getAIInstance = async () => {
+  // Cek apakah ada di process.env (Vercel Build-time)
+  let apiKey = process.env.API_KEY;
+
+  // Cek apakah ada di window.aistudio (Vercel/AI Studio Runtime)
+  if (!apiKey || apiKey === 'undefined' || apiKey === '') {
+    if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+      const hasKey = await window.aistudio.hasSelectedApiKey();
+      if (!hasKey) {
+        throw new Error('API_KEY_MISSING');
+      }
+      // Jika sudah dipilih, variabel ini akan terinjeksi otomatis ke process.env.API_KEY oleh platform
+      apiKey = process.env.API_KEY;
+    }
+  }
+
+  if (!apiKey || apiKey === 'undefined' || apiKey === '') {
+    throw new Error('API_KEY_MISSING');
+  }
+
+  return new GoogleGenAI({ apiKey });
+};
+
+/**
  * Helper to handle Gemini API errors
  */
 const handleGeminiError = (error: any) => {
   console.error("Gemini API Error Detail:", error);
   
-  if (error.message?.includes('API_KEY_INVALID') || error.message?.includes('API key not found')) {
+  const msg = error.message || '';
+  
+  if (msg.includes('API_KEY_INVALID') || msg.includes('API key not found') || msg === 'API_KEY_MISSING') {
     throw new Error('API_KEY_MISSING');
   }
   
-  if (error.message?.includes('Requested entity was not found.')) {
+  if (msg.includes('Requested entity was not found.')) {
+    // Ini biasanya berarti model tidak tersedia atau API belum diaktifkan di Google Cloud
     throw new Error('MODEL_NOT_FOUND');
   }
 
-  if (error.message?.includes('429')) {
+  if (msg.includes('429')) {
     throw new Error('QUOTA_EXHAUSTED');
   }
   
@@ -23,23 +52,11 @@ const handleGeminiError = (error: any) => {
 };
 
 /**
- * Helper to ensure API Key is present
- */
-const getAIInstance = () => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey || apiKey === 'undefined') {
-    console.error("CRITICAL: API_KEY is not defined in environment variables.");
-    throw new Error('API_KEY_MISSING');
-  }
-  return new GoogleGenAI({ apiKey });
-};
-
-/**
  * Chat Stream for interactive assistant (GPT-style)
  */
-export const startAIChat = (systemInstruction: string) => {
+export const startAIChat = async (systemInstruction: string) => {
   try {
-    const ai = getAIInstance();
+    const ai = await getAIInstance();
     return ai.chats.create({
       model: 'gemini-3-flash-preview',
       config: {
@@ -57,7 +74,7 @@ export const startAIChat = (systemInstruction: string) => {
  */
 export const analyzeCPToTP = async (cpContent: string, elemen: string, fase: string, kelas: string) => {
   try {
-    const ai = getAIInstance();
+    const ai = await getAIInstance();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Pecah teks CP menjadi materi dan TP linear. Elemen: ${elemen}. CP: "${cpContent}"`,
@@ -88,7 +105,7 @@ export const analyzeCPToTP = async (cpContent: string, elemen: string, fase: str
  */
 export const completeATPDetails = async (tp: string, materi: string, kelas: string) => {
   try {
-    const ai = getAIInstance();
+    const ai = await getAIInstance();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Lengkapi ATP SD Kelas ${kelas}. Materi: ${materi}, TP: ${tp}`,
@@ -120,7 +137,7 @@ export const completeATPDetails = async (tp: string, materi: string, kelas: stri
  */
 export const recommendPedagogy = async (tp: string, alurAtp: string, materi: string, kelas: string) => {
   try {
-    const ai = getAIInstance();
+    const ai = await getAIInstance();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Rekomendasi model pembelajaran untuk TP: "${tp}" SD Kelas ${kelas}`,
@@ -147,17 +164,15 @@ export const recommendPedagogy = async (tp: string, alurAtp: string, materi: str
  */
 export const generateRPMContent = async (tp: string, materi: string, kelas: string, praktikPedagogis: string, alokasiWaktu: string, jumlahPertemuan: number = 1) => {
   try {
-    const ai = getAIInstance();
+    const ai = await getAIInstance();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: `Susun Rencana Pembelajaran Mendalam (RPM) SD Kelas ${kelas} untuk ${jumlahPertemuan} kali pertemuan. 
       Tujuan: ${tp}. Materi: ${materi}. Model: ${praktikPedagogis}.
       
       ATURAN FORMAT WAJIB:
-      1. Field 'kegiatanAwal', 'kegiatanInti', and 'kegiatanPenutup' WAJIB menggunakan format daftar bernomor (1., 2., 3., dst).
-      2. Setiap poin kegiatan harus dipisahkan oleh baris baru (newline/enter).
-      3. DILARANG membuat teks dalam satu paragraf panjang.
-      4. Gunakan kalimat yang praktis untuk guru di sekolah.`,
+      1. Field 'kegiatanAwal', 'kegiatanInti' dan 'kegiatanPenutup' WAJIB menggunakan format daftar bernomor (1., 2., 3., dst).
+      2. Setiap poin kegiatan harus dipisahkan oleh baris baru.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -167,9 +182,9 @@ export const generateRPMContent = async (tp: string, materi: string, kelas: stri
             kemitraan: { type: Type.STRING },
             lingkunganBelajar: { type: Type.STRING },
             pemanfaatanDigital: { type: Type.STRING },
-            kegiatanAwal: { type: Type.STRING, description: "Wajib Daftar Bernomor 1, 2, 3... Urut ke bawah" },
-            kegiatanInti: { type: Type.STRING, description: "Wajib Daftar Bernomor 1, 2, 3... Urut ke bawah" },
-            kegiatanPenutup: { type: Type.STRING, description: "Wajib Daftar Bernomor 1, 2, 3... Urut ke bawah" }
+            kegiatanAwal: { type: Type.STRING },
+            kegiatanInti: { type: Type.STRING },
+            kegiatanPenutup: { type: Type.STRING }
           },
           required: ['praktikPedagogis', 'kemitraan', 'lingkunganBelajar', 'pemanfaatanDigital', 'kegiatanAwal', 'kegiatanInti', 'kegiatanPenutup']
         }
@@ -186,17 +201,10 @@ export const generateRPMContent = async (tp: string, materi: string, kelas: stri
  */
 export const generateAssessmentDetails = async (tp: string, materi: string, kelas: string, narasiAwal: string, narasiProses: string, narasiAkhir: string) => {
   try {
-    const ai = getAIInstance();
+    const ai = await getAIInstance();
     const response = await ai.models.generateContent({
       model: 'gemini-3-pro-preview',
-      contents: `Buat rubrik asesmen lengkap 3 BAGIAN (AWAL, PROSES, AKHIR) untuk TP: "${tp}" materi "${materi}" SD Kelas ${kelas}.
-      
-      Gunakan referensi teknik dari ATP berikut:
-      1. ASESMEN AWAL: ${narasiAwal}
-      2. ASESMEN PROSES: ${narasiProses}
-      3. ASESMEN AKHIR: ${narasiAkhir}
-      
-      DILARANG memberikan narasi pembuka atau penutup. Berikan HANYA JSON array berisi 3 objek.`,
+      contents: `Buat rubrik asesmen lengkap 3 BAGIAN (AWAL, PROSES, AKHIR) untuk TP: "${tp}" materi "${materi}" SD Kelas ${kelas}.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -204,7 +212,7 @@ export const generateAssessmentDetails = async (tp: string, materi: string, kela
           items: {
             type: Type.OBJECT,
             properties: {
-              kategori: { type: Type.STRING, description: "AWAL, PROSES, atau AKHIR" },
+              kategori: { type: Type.STRING },
               teknik: { type: Type.STRING },
               bentuk: { type: Type.STRING },
               instruksi: { type: Type.STRING },
@@ -214,10 +222,10 @@ export const generateAssessmentDetails = async (tp: string, materi: string, kela
                   type: Type.OBJECT,
                   properties: {
                     aspek: { type: Type.STRING },
-                    level4: { type: Type.STRING, description: "Sangat Baik" },
-                    level3: { type: Type.STRING, description: "Baik" },
-                    level2: { type: Type.STRING, description: "Cukup" },
-                    level1: { type: Type.STRING, description: "Perlu Bimbingan" }
+                    level4: { type: Type.STRING },
+                    level3: { type: Type.STRING },
+                    level2: { type: Type.STRING },
+                    level1: { type: Type.STRING }
                   },
                   required: ['aspek', 'level4', 'level3', 'level2', 'level1']
                 }
@@ -239,37 +247,20 @@ export const generateAssessmentDetails = async (tp: string, materi: string, kela
  */
 export const generateLKPDContent = async (rpm: any) => {
   try {
-    const ai = getAIInstance();
-    const prompt = `Susun konten Lembar Kerja Peserta Didik (LKPD) untuk SD Kelas ${rpm.kelas}.
-    
-    REFERENSI UTAMA DARI RENCANA PEMBELAJARAN (RPM):
-    - Topik: ${rpm.materi}
-    - Tujuan: ${rpm.tujuanPembelajaran}
-    - Model Pembelajaran: ${rpm.praktikPedagogis}
-    - Langkah Awal (Memahami): ${rpm.kegiatanAwal}
-    - Langkah Inti (Mengaplikasi): ${rpm.kegiatanInti}
-    - Langkah Penutup (Merefleksi): ${rpm.kegiatanPenutup}
-    
-    INSTRUKSI KHUSUS:
-    1. 'langkahKerja' harus merupakan turunan teknis dari 'Langkah Inti (Mengaplikasi)' yang ada di RPM.
-    2. Sesuaikan tingkat kesulitan tugas mandiri dengan model pembelajaran '${rpm.praktikPedagogis}'.
-    3. Semua poin (petunjuk, langkah kerja, tugas, refleksi) WAJIB menggunakan format daftar bernomor vertikal (1., 2., 3., dst).
-    4. Jika ada lebih dari 1 pertemuan, pisahkan narasi dengan tag 'Pertemuan 1:', 'Pertemuan 2:', dst.
-    5. Gunakan bahasa yang ramah anak sekolah dasar.`;
-
+    const ai = await getAIInstance();
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
-      contents: prompt,
+      contents: `Susun LKPD untuk SD Kelas ${rpm.kelas}. Topik: ${rpm.materi}. Tujuan: ${rpm.tujuanPembelajaran}.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            petunjuk: { type: Type.STRING, description: "Petunjuk pengerjaan (Daftar bernomor)" },
-            materiRingkas: { type: Type.STRING, description: "Ringkasan konsep (Daftar bernomor)" },
-            langkahKerja: { type: Type.STRING, description: "Urutan aktivitas siswa (Daftar bernomor)" },
-            tugasMandiri: { type: Type.STRING, description: "Tantangan atau soal latihan (Daftar bernomor)" },
-            refleksi: { type: Type.STRING, description: "Pertanyaan refleksi diri (Daftar bernomor)" }
+            petunjuk: { type: Type.STRING },
+            materiRingkas: { type: Type.STRING },
+            langkahKerja: { type: Type.STRING },
+            tugasMandiri: { type: Type.STRING },
+            refleksi: { type: Type.STRING }
           },
           required: ['petunjuk', 'materiRingkas', 'langkahKerja', 'tugasMandiri', 'refleksi']
         }
