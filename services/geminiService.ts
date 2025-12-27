@@ -1,5 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
+import { UploadedFile } from "../types";
 
 /**
  * Mendapatkan API Key eksklusif dari environment variable
@@ -45,19 +46,43 @@ const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 4): Promise<T> =>
   throw lastError;
 };
 
-const handleGeminiError = (error: any) => {
-  console.error("AI Service Log:", error);
-  const errorStr = JSON.stringify(error).toLowerCase();
-  if (errorStr.includes('api key not found') || errorStr.includes('invalid')) throw new Error('API_KEY_MISSING');
-  if (errorStr.includes('429') || errorStr.includes('quota')) throw new Error('QUOTA_EXCEEDED');
-  throw error;
-};
-
 export const startAIChat = async (systemInstruction: string) => {
   const ai = getAI();
   return ai.chats.create({
     model: DEFAULT_MODEL,
     config: { systemInstruction, temperature: 0.7 },
+  });
+};
+
+/**
+ * Analisis Dokumen Unggahan (Multimodal)
+ */
+export const analyzeDocuments = async (files: UploadedFile[], prompt: string) => {
+  return withRetry(async () => {
+    const ai = getAI();
+    
+    // Siapkan bagian multimodal (file inline data)
+    const fileParts = files.map(file => ({
+      inlineData: {
+        data: file.base64.split(',')[1], // Ambil raw base64 tanpa prefix data:type
+        mimeType: file.type
+      }
+    }));
+
+    const response = await ai.models.generateContent({
+      model: DEFAULT_MODEL,
+      contents: {
+        parts: [
+          ...fileParts,
+          { text: prompt }
+        ]
+      },
+      config: {
+        systemInstruction: "Anda adalah pakar kurikulum SD Negeri 5 Bilato. Analisis dokumen (RPP, Materi, atau Silabus) yang diberikan oleh guru dan berikan saran konstruktif, buatkan rangkuman, atau buatkan soal evaluasi sesuai permintaan."
+      }
+    });
+    
+    return response.text || "AI tidak dapat membaca dokumen tersebut.";
   });
 };
 
@@ -249,6 +274,5 @@ export const generateButirSoal = async (item: any) => {
 };
 
 export const setGeminiKey = (key: string) => {
-  // Tidak lagi menggunakan in-memory key untuk keamanan deployment
-  // Semua key harus melalui process.env.API_KEY di Vercel
+  // Key sekarang disuntikkan secara dinamis dari database atau process.env
 };
