@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { User, Role, TeacherType, MATA_PELAJARAN } from '../types';
-import { Trash2, Edit2, Save, X, Users, Shield, UserCheck, BookOpen, Building2, AlertTriangle, Loader2, Cloud, Home, Briefcase } from 'lucide-react';
+import { Trash2, Edit2, Save, X, Users, Shield, UserCheck, BookOpen, Building2, AlertTriangle, Loader2, Cloud, Home, Briefcase, Key } from 'lucide-react';
 import { db, auth, collection, onSnapshot, doc, setDoc, deleteDoc, createUserWithEmailAndPassword } from '../services/firebase';
 
 interface UserManagerProps {
@@ -49,37 +49,30 @@ const UserManager: React.FC<UserManagerProps> = ({ user }) => {
     try {
       const userEmail = `${cleanUsername}@sdn5bilato.sch.id`;
       let userPwd = cleanPassword || '';
+      
+      // Keamanan minimal password Firebase (6 Karakter)
       if (!isEditing && userPwd.length < 6) {
         userPwd = userPwd + userPwd;
       }
 
+      const userPayload = {
+        username: cleanUsername,
+        role: formData.role || 'guru',
+        teacherType: formData.teacherType || 'kelas',
+        name: cleanName,
+        nip: formData.nip?.trim() || '-',
+        kelas: formData.kelas?.trim() || '-',
+        mapelDiampu: formData.mapelDiampu || []
+      };
+
       if (isEditing) {
-        await setDoc(doc(db, "users", isEditing), {
-          username: cleanUsername,
-          role: formData.role,
-          teacherType: formData.teacherType,
-          name: cleanName,
-          nip: formData.nip?.trim() || '-',
-          kelas: formData.kelas?.trim() || '-',
-          mapelDiampu: formData.mapelDiampu || []
-        }, { merge: true });
-        
+        await setDoc(doc(db, "users", isEditing), userPayload, { merge: true });
         setIsEditing(null);
         alert('Data profil diperbarui!');
       } else {
         const userCredential = await createUserWithEmailAndPassword(auth, userEmail, userPwd);
         const firebaseUid = userCredential.user.uid;
-
-        await setDoc(doc(db, "users", firebaseUid), {
-          username: cleanUsername,
-          role: formData.role,
-          teacherType: formData.teacherType,
-          name: cleanName,
-          nip: formData.nip?.trim() || '-',
-          kelas: formData.kelas?.trim() || '-',
-          mapelDiampu: formData.mapelDiampu || []
-        });
-
+        await setDoc(doc(db, "users", firebaseUid), userPayload);
         alert(`User @${cleanUsername} berhasil didaftarkan!`);
       }
       resetForm();
@@ -113,7 +106,8 @@ const UserManager: React.FC<UserManagerProps> = ({ user }) => {
     setIsEditing(u.id);
     setFormData({
       ...u,
-      password: 'HIDDEN'
+      password: 'HIDDEN',
+      teacherType: u.teacherType || 'kelas'
     });
   };
 
@@ -124,15 +118,6 @@ const UserManager: React.FC<UserManagerProps> = ({ user }) => {
       setDeleteConfirmId(null);
     } catch (e) {
       alert('Gagal menghapus data.');
-    }
-  };
-
-  const toggleMapel = (mapel: string) => {
-    const currentMapel = formData.mapelDiampu || [];
-    if (currentMapel.includes(mapel)) {
-      setFormData({ ...formData, mapelDiampu: currentMapel.filter(m => m !== mapel) });
-    } else {
-      setFormData({ ...formData, mapelDiampu: [...currentMapel, mapel] });
     }
   };
 
@@ -196,26 +181,23 @@ const UserManager: React.FC<UserManagerProps> = ({ user }) => {
                     <Briefcase size={14} /> GURU MAPEL
                   </button>
                 </div>
-                <p className="text-[9px] text-slate-400 italic leading-tight px-1">
-                  *Guru Kelas akan dikunci aksesnya ke satu kelas yang dipilih. Guru Mapel dapat mengakses semua kelas.
-                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-1">
+                <div>
                   <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5 ml-1">Username</label>
                   <input 
-                    className="w-full border border-slate-200 rounded-xl p-2.5 text-sm font-semibold focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-50"
+                    className="w-full border border-slate-200 rounded-xl p-2.5 text-sm font-semibold focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-100"
                     value={formData.username}
                     disabled={!!isEditing}
                     onChange={e => setFormData({...formData, username: e.target.value})}
                   />
                 </div>
-                <div className="col-span-1">
+                <div>
                   <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5 ml-1">Password</label>
                   <input 
                     type="password"
-                    className="w-full border border-slate-200 rounded-xl p-2.5 text-sm font-semibold focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-50"
+                    className="w-full border border-slate-200 rounded-xl p-2.5 text-sm font-semibold focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-100"
                     value={formData.password}
                     disabled={!!isEditing}
                     placeholder={isEditing ? "••••••" : ""}
@@ -246,7 +228,7 @@ const UserManager: React.FC<UserManagerProps> = ({ user }) => {
                   <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5 ml-1">Role Akses</label>
                   <select 
                     className="w-full border border-slate-200 rounded-xl p-2.5 text-sm font-semibold focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                    value={formData.role}
+                    value={formData.role || 'guru'}
                     onChange={e => setFormData({...formData, role: e.target.value as Role})}
                   >
                     <option value="guru">Guru</option>
@@ -256,34 +238,15 @@ const UserManager: React.FC<UserManagerProps> = ({ user }) => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5 ml-1">
-                  {formData.teacherType === 'kelas' ? 'Kelas Homebase (Terkunci)' : 'Kelas Utama (Referensi)'}
-                </label>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5 ml-1">Kelas Utama</label>
                 <select 
                   className="w-full border border-slate-200 rounded-xl p-2.5 text-sm font-semibold focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                  value={formData.kelas}
+                  value={formData.kelas || ''}
                   onChange={e => setFormData({...formData, kelas: e.target.value})}
                 >
                   <option value="">Pilih Kelas</option>
                   {['1','2','3','4','5','6','-'].map(k => <option key={k} value={k}>Kelas {k}</option>)}
                 </select>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-2 ml-1">Mata Pelajaran Diampu</label>
-                <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto p-2 bg-slate-50 rounded-xl border border-slate-100 scrollbar-thin">
-                  {MATA_PELAJARAN.map(m => (
-                    <label key={m} className="flex items-center gap-2 px-2 py-1.5 hover:bg-white rounded-lg cursor-pointer transition-colors">
-                      <input 
-                        type="checkbox" 
-                        className="rounded text-blue-600 focus:ring-blue-500"
-                        checked={formData.mapelDiampu?.includes(m)}
-                        onChange={() => toggleMapel(m)}
-                      />
-                      <span className="text-[11px] font-semibold text-slate-700">{m}</span>
-                    </label>
-                  ))}
-                </div>
               </div>
 
               <div className="flex gap-2 pt-2">
@@ -314,49 +277,32 @@ const UserManager: React.FC<UserManagerProps> = ({ user }) => {
                 </div>
                 <h3 className="font-black text-slate-800 uppercase tracking-tight">User Aktif Cloud</h3>
               </div>
-              <span className="text-[10px] font-black bg-white border border-slate-200 px-3 py-1 rounded-full text-slate-500">
-                {users.length} PENGGUNA
-              </span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
-                    <th className="px-6 py-4">Profil & NIP</th>
-                    <th className="px-6 py-4">Tipe Guru</th>
+                    <th className="px-6 py-4">Profil</th>
+                    <th className="px-6 py-4">Status AI</th>
                     <th className="px-6 py-4">Tugas</th>
                     <th className="px-6 py-4 text-right">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {users.map(u => (
-                    <tr key={u.id} className="group hover:bg-slate-50/30 transition-colors">
+                    <tr key={u.id} className="group hover:bg-slate-50/30 transition-colors align-middle">
                       <td className="px-6 py-4">
                         <div className="font-bold text-slate-900 text-sm uppercase">{u.name}</div>
-                        <div className="text-[10px] font-medium text-slate-400">@{u.username} | NIP. {u.nip || '-'}</div>
+                        <div className="text-[10px] font-medium text-slate-400">@{u.username}</div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          {u.teacherType === 'kelas' ? (
-                            <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-[9px] font-black uppercase">
-                              <Home size={10} /> Guru Kelas
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full text-[9px] font-black uppercase">
-                              <Briefcase size={10} /> Guru Mapel
-                            </span>
-                          )}
-                          {u.role === 'admin' && (
-                            <span className="bg-slate-900 text-white px-2 py-0.5 rounded-full text-[8px] font-black uppercase">Admin</span>
-                          )}
-                        </div>
+                        <span className="inline-flex items-center gap-1.5 bg-slate-100 text-slate-400 px-3 py-1 rounded-full text-[9px] font-black uppercase">
+                            Managed System
+                        </span>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700 mb-1">
+                         <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-700">
                           <Building2 size={10} className="text-slate-400" /> Kelas {u.kelas || '-'}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-[9px] font-medium text-slate-500">
-                          <BookOpen size={10} className="text-slate-400" /> {u.mapelDiampu?.length || 0} Mapel
                         </div>
                       </td>
                       <td className="px-6 py-4 text-right">

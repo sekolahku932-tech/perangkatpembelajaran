@@ -4,7 +4,7 @@ import { UploadedFile, ChatMessage, User } from '../types';
 import { 
   FileUp, Trash2, Send, Bot, User as UserIcon, Loader2, 
   FileText, Image as ImageIcon, Sparkles, MessageSquare, 
-  X, CheckCircle2, AlertCircle, Cloud
+  X, CheckCircle2, AlertCircle, Cloud, Key
 } from 'lucide-react';
 import { analyzeDocuments } from '../services/geminiService';
 
@@ -65,20 +65,25 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ user }) => {
     setIsAnalyzing(true);
 
     try {
+      // Sesuai panduan: Menggunakan logic terpusat yang mengambil key dari process.env.API_KEY
       const response = await analyzeDocuments(files, currentInput);
       const aiMsg: ChatMessage = { role: 'model', content: response, timestamp: new Date() };
       setChatHistory(prev => [...prev, aiMsg]);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
+      let errMsg = "Maaf, terjadi kesalahan saat menganalisis.";
+      if (error.message === 'QUOTA_EXCEEDED') errMsg = "Kuota AI sistem saat ini sudah habis. Silakan coba lagi besok.";
+      if (error.message === 'API_KEY_MISSING') errMsg = "Konfigurasi kunci API sistem tidak ditemukan.";
+      
       const errorMsg: ChatMessage = { 
         role: 'model', 
-        content: "Maaf, terjadi kesalahan saat menganalisis. Pastikan file tidak terlalu besar (Max 5MB per file) dan Anda telah mengatur API Key.", 
+        content: errMsg, 
         timestamp: new Date() 
       };
       setChatHistory(prev => [...prev, errorMsg]);
     } finally {
       setIsAnalyzing(false);
-      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     }
   };
 
@@ -141,20 +146,23 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ user }) => {
           </div>
         </div>
 
-        <div className="bg-blue-600 rounded-[32px] p-6 text-white shadow-xl shadow-blue-100 relative overflow-hidden">
+        <div className="bg-indigo-600 rounded-[32px] p-6 text-white shadow-xl shadow-indigo-100 relative overflow-hidden">
            <Cloud className="absolute -bottom-4 -right-4 opacity-20" size={80}/>
            <div className="relative z-10">
               <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2">
                  <Sparkles size={14}/> Tips Analisis
               </h4>
-              <p className="text-[10px] leading-relaxed font-medium opacity-90">
+              <div className="text-[10px] leading-relaxed font-medium opacity-90">
                  Unggah file materi, lalu minta AI untuk:
                  <ul className="mt-2 space-y-1 list-disc pl-4">
                     <li>"Buatkan 10 soal pilihan ganda dari teks ini"</li>
-                    <li>"Analisis kesesuaian materi ini dengan Fase {user.kelas === '1' || user.kelas === '2' ? 'A' : user.kelas === '3' || user.kelas === '4' ? 'B' : 'C'}"</li>
+                    <li>"Analisis kesesuaian materi ini dengan kurikulum"</li>
                     <li>"Rangkum materi ini jadi poin penting"</li>
                  </ul>
-              </p>
+              </div>
+              <div className="mt-4 p-2 bg-white/10 rounded-xl border border-white/10 text-[8px] font-black uppercase tracking-tighter flex items-center gap-2">
+                 <Cloud size={10}/> Cloud Managed AI Aktif
+              </div>
            </div>
         </div>
       </div>
@@ -166,7 +174,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ user }) => {
               <div className="p-2 bg-indigo-500 rounded-xl shadow-lg"><MessageSquare size={18}/></div>
               <div>
                  <h3 className="font-black text-xs uppercase tracking-widest leading-none">Diskusi Dokumen AI</h3>
-                 <p className="text-[8px] text-indigo-300 font-bold uppercase mt-1 tracking-tighter">Powered by Gemini 3 Flash</p>
+                 <p className="text-[8px] text-indigo-300 font-bold uppercase mt-1 tracking-tighter">Login: {user.name}</p>
               </div>
            </div>
            {files.length > 0 && (
@@ -244,11 +252,6 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ user }) => {
               <Send size={18} />
             </button>
           </div>
-          {files.length === 0 && (
-             <p className="text-[9px] text-center text-slate-400 font-black uppercase mt-3 tracking-widest flex items-center justify-center gap-2">
-                <AlertCircle size={10}/> Fitur analisis file memerlukan minimal 1 dokumen terunggah
-             </p>
-          )}
         </div>
       </div>
     </div>

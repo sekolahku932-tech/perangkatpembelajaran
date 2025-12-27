@@ -28,6 +28,7 @@ export interface User {
   nip: string;
   kelas: string;
   mapelDiampu: string[];
+  // FIX: API key must be obtained exclusively from process.env.API_KEY
 }
 
 export interface Siswa {
@@ -99,6 +100,7 @@ export interface KisiKisiItem {
   indikatorSoal: string;
   jenis: 'Tes' | 'Non Tes';
   bentukSoal: 'Pilihan Ganda' | 'Pilihan Ganda Kompleks' | 'Menjodohkan' | 'Isian' | 'Uraian';
+  stimulus: string; // Baru: Untuk wacana AKM
   soal: string;
   kunciJawaban: string;
   nomorSoal: number;

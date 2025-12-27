@@ -1,72 +1,65 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { UploadedFile } from "../types";
 
-/**
- * Variabel lokal untuk menyimpan API Key yang disuntikkan secara dinamis
- */
-let dynamicApiKey: string | null = null;
-
-/**
- * Mendapatkan API Key dengan urutan prioritas:
- * 1. Kunci dinamis dari Pengaturan (Database)
- * 2. Kunci dari Environment Variable (jika ada)
- */
+// FIX: Obtain API key exclusively from process.env.API_KEY
 const getApiKey = () => {
-  if (dynamicApiKey && dynamicApiKey.trim() !== '') {
-    return dynamicApiKey;
-  }
   return process.env.API_KEY || null;
 };
 
-// Menggunakan model Gemini 3 Flash yang paling stabil untuk Free Tier
 const DEFAULT_MODEL = 'gemini-3-flash-preview';
 
-const getAI = () => {
+/**
+ * Membuat instance AI baru menggunakan kunci yang tersedia
+ */
+const createAIInstance = () => {
   const apiKey = getApiKey();
   if (!apiKey) {
     throw new Error('API_KEY_MISSING');
   }
+  // FIX: Use named parameter for apiKey during initialization
   return new GoogleGenAI({ apiKey });
 };
 
 /**
- * Sistem Retry dengan Exponential Backoff yang ditingkatkan
+ * Sistem Retry dengan Exponential Backoff
  */
-const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 5): Promise<T> => {
+const withRetry = async <T>(fn: (ai: GoogleGenAI) => Promise<T>, maxRetries = 3): Promise<T> => {
   let lastError: any;
+  
   for (let i = 0; i < maxRetries; i++) {
     try {
-      return await fn();
+      const ai = createAIInstance();
+      return await fn(ai);
     } catch (error: any) {
       lastError = error;
       const errorStr = JSON.stringify(error).toLowerCase();
       
-      // Deteksi error kuota (429)
       const isQuotaError = errorStr.includes('429') || 
                            errorStr.includes('quota') || 
                            errorStr.includes('resource_exhausted');
       
       if (isQuotaError && i < maxRetries - 1) {
-        // Jeda meningkat: 2s, 4s, 8s, 16s...
-        const delay = Math.pow(2, i + 1) * 1000;
-        console.warn(`Kuota API (429) tercapai. Mencoba ulang otomatis ke-${i + 1} dalam ${delay}ms...`);
+        const delay = Math.pow(2, i + 2) * 1000;
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
       }
       
-      // Jika error bukan kuota, atau sudah maksimal retry, lempar errornya
-      if (isQuotaError) {
-        throw new Error('QUOTA_EXCEEDED');
+      if (errorStr.includes('400') || errorStr.includes('invalid') || errorStr.includes('key not found')) {
+        throw new Error('INVALID_API_KEY');
       }
+
+      if (isQuotaError) throw new Error('QUOTA_EXCEEDED');
       throw error;
     }
   }
   throw lastError;
 };
 
+/**
+ * Inisialisasi Chat
+ */
 export const startAIChat = async (systemInstruction: string) => {
-  const ai = getAI();
+  const ai = createAIInstance();
   return ai.chats.create({
     model: DEFAULT_MODEL,
     config: { systemInstruction, temperature: 0.7 },
@@ -74,13 +67,10 @@ export const startAIChat = async (systemInstruction: string) => {
 };
 
 /**
- * Analisis Dokumen Unggahan (Multimodal)
+ * Analisis Dokumen Multimodal
  */
 export const analyzeDocuments = async (files: UploadedFile[], prompt: string) => {
-  return withRetry(async () => {
-    const ai = getAI();
-    
-    // Siapkan bagian multimodal (file inline data)
+  return withRetry(async (ai) => {
     const fileParts = files.map(file => ({
       inlineData: {
         data: file.base64.split(',')[1],
@@ -97,20 +87,20 @@ export const analyzeDocuments = async (files: UploadedFile[], prompt: string) =>
         ]
       },
       config: {
-        systemInstruction: "Anda adalah pakar kurikulum SD Negeri 5 Bilato. Analisis dokumen (RPP, Materi, atau Silabus) yang diberikan oleh guru dan berikan saran konstruktif, buatkan rangkuman, atau buatkan soal evaluasi sesuai permintaan."
+        systemInstruction: "Anda adalah pakar kurikulum SD. Berikan jawaban yang sangat ringkas dan padat."
       }
     });
     
-    return response.text || "AI tidak dapat membaca dokumen tersebut.";
+    // FIX: Use .text property to extract content
+    return response.text || "AI tidak memberikan respon teks.";
   });
 };
 
 export const analyzeCPToTP = async (cpContent: string, elemen: string, fase: string, kelas: string) => {
-  return withRetry(async () => {
-    const ai = getAI();
+  return withRetry(async (ai) => {
     const response = await ai.models.generateContent({
       model: DEFAULT_MODEL,
-      contents: `Analisis CP: "${cpContent}". Pisahkan menjadi urutan TP linear untuk SD Kelas ${kelas}.`,
+      contents: `Pisahkan CP ini menjadi TP linear SD Kelas ${kelas}: "${cpContent}".`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -127,16 +117,16 @@ export const analyzeCPToTP = async (cpContent: string, elemen: string, fase: str
         }
       }
     });
+    // FIX: Use .text property
     return JSON.parse(response.text || '[]');
   });
 };
 
 export const completeATPDetails = async (tp: string, materi: string, kelas: string) => {
-  return withRetry(async () => {
-    const ai = getAI();
+  return withRetry(async (ai) => {
     const response = await ai.models.generateContent({
       model: DEFAULT_MODEL,
-      contents: `Lengkapi ATP. Materi: ${materi}, TP: ${tp}. SD Kelas ${kelas}.`,
+      contents: `Lengkapi ATP secara ringkas. TP: ${tp}.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -153,16 +143,16 @@ export const completeATPDetails = async (tp: string, materi: string, kelas: stri
         }
       }
     });
+    // FIX: Use .text property
     return JSON.parse(response.text || '{}');
   });
 };
 
 export const recommendPedagogy = async (tp: string, alurAtp: string, materi: string, kelas: string) => {
-  return withRetry(async () => {
-    const ai = getAI();
+  return withRetry(async (ai) => {
     const response = await ai.models.generateContent({
       model: DEFAULT_MODEL,
-      contents: `Rekomendasi model pembelajaran untuk TP: "${tp}" SD Kelas ${kelas}`,
+      contents: `Rekomendasi model pembelajaran singkat untuk TP: "${tp}"`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -174,42 +164,45 @@ export const recommendPedagogy = async (tp: string, alurAtp: string, materi: str
         }
       }
     });
+    // FIX: Use .text property
     return JSON.parse(response.text || '{}');
   });
 };
 
 export const generateRPMContent = async (tp: string, materi: string, kelas: string, praktikPedagogis: string, alokasiWaktu: string, jumlahPertemuan: number = 1) => {
-  return withRetry(async () => {
-    const ai = getAI();
+  return withRetry(async (ai) => {
+    const prompt = `Buat konten RPM SD Kelas ${kelas} (Deep Learning). 
+    TP: "${tp}" | Materi: "${materi}" | Model: "${praktikPedagogis}" | Pertemuan: ${jumlahPertemuan}.
+
+    Format JSON:
+    {
+      "praktikPedagogis": "Nama Model",
+      "kemitraan": "Singkat",
+      "lingkunganBelajar": "Singkat",
+      "pemanfaatanDigital": "Singkat",
+      "kegiatanAwal": "Pertemuan 1:\\n1. ...",
+      "kegiatanInti": "Pertemuan 1:\\n1. ...",
+      "kegiatanPenutup": "Pertemuan 1:\\n1. ..."
+    }`;
+
     const response = await ai.models.generateContent({
       model: DEFAULT_MODEL,
-      contents: `Susun RPM SD Kelas ${kelas}. TP: ${tp}. Materi: ${materi}. Model: ${praktikPedagogis}.`,
+      contents: prompt,
       config: {
         responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            praktikPedagogis: { type: Type.STRING },
-            kemitraan: { type: Type.STRING },
-            lingkunganBelajar: { type: Type.STRING },
-            pemanfaatanDigital: { type: Type.STRING },
-            kegiatanAwal: { type: Type.STRING },
-            kegiatanInti: { type: Type.STRING },
-            kegiatanPenutup: { type: Type.STRING }
-          }
-        }
+        thinkingConfig: { thinkingBudget: 0 }
       }
     });
+    // FIX: Use .text property
     return JSON.parse(response.text || '{}');
   });
 };
 
 export const generateAssessmentDetails = async (tp: string, materi: string, kelas: string, narasiAwal: string, narasiProses: string, narasiAkhir: string) => {
-  return withRetry(async () => {
-    const ai = getAI();
+  return withRetry(async (ai) => {
     const response = await ai.models.generateContent({
       model: DEFAULT_MODEL,
-      contents: `Buat 3 rubrik asesmen lengkap (AWAL, PROSES, AKHIR) untuk TP: "${tp}" SD Kelas ${kelas}.`,
+      contents: `Buat 3 rubrik asesmen singkat untuk TP: "${tp}".`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -236,67 +229,94 @@ export const generateAssessmentDetails = async (tp: string, materi: string, kela
               }
             }
           }
-        }
+        },
+        thinkingConfig: { thinkingBudget: 0 }
       }
     });
+    // FIX: Use .text property
     return response.text || "[]";
   });
 };
 
 export const generateLKPDContent = async (rpm: any) => {
-  return withRetry(async () => {
-    const ai = getAI();
+  return withRetry(async (ai) => {
     const response = await ai.models.generateContent({
       model: DEFAULT_MODEL,
-      contents: `Susun LKPD. Topik: ${rpm.materi}. SD Kelas ${rpm.kelas}.`,
+      contents: `Susun LKPD ringkas. Materi: ${rpm.materi}.`,
       config: {
         responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            petunjuk: { type: Type.STRING },
-            materiRingkas: { type: Type.STRING },
-            langkahKerja: { type: Type.STRING },
-            tugasMandiri: { type: Type.STRING },
-            refleksi: { type: Type.STRING }
-          }
-        }
+        thinkingConfig: { thinkingBudget: 0 }
       }
     });
+    // FIX: Use .text property
     return JSON.parse(response.text || '{}');
   });
 };
 
 export const generateIndikatorSoal = async (item: any) => {
-  return withRetry(async () => {
-    const ai = getAI();
+  return withRetry(async (ai) => {
+    const prompt = `Buat 1 kalimat indikator soal AKM jenjang SD. 
+    Tujuan Pembelajaran: "${item.tujuanPembelajaran}".
+    Level Kognitif: "${item.kompetensi}".
+    Bentuk Soal: "${item.bentukSoal}".
+    
+    INSTRUKSI:
+    1. Gunakan Kata Kerja Operasional (KKO) yang sesuai dengan Level Kognitif tersebut.
+    2. Sesuaikan bahasa dengan Bentuk Soal yang diminta.
+    3. Jawaban hanya berupa 1 kalimat indikator saja.`;
+
     const response = await ai.models.generateContent({
       model: DEFAULT_MODEL,
-      contents: `Buatkan 1 kalimat indikator soal AKM SD. Mapel: ${item.mataPelajaran}, Kelas: ${item.kelas}, TP: ${item.tujuanPembelajaran}. Berikan kalimatnya saja.`,
+      contents: prompt,
+      config: { thinkingConfig: { thinkingBudget: 0 } }
     });
+    // FIX: Use .text property
     return response.text?.trim() || "";
   });
 };
 
 export const generateButirSoal = async (item: any) => {
-  return withRetry(async () => {
-    const ai = getAI();
+  return withRetry(async (ai) => {
+    const prompt = `Buat 1 butir soal AKM SD yang WAJIB SINKRON TOTAL dengan Indikator Soal berikut:
+    Indikator Soal: "${item.indikatorSoal}"
+    Bentuk Soal: "${item.bentukSoal}"
+    Level Kognitif: "${item.kompetensi}"
+    Mata Pelajaran: "${item.mataPelajaran}"
+
+    WAJIB PATUHI ATURAN TEKNIS:
+    1. JIKA INDIKATOR MEMINTA "GAMBAR", "SIMBOL", ATAU "DATA":
+       - Anda WAJIB membuat TABEL MARKDOWN (2 kolom) di bagian field "stimulus".
+       - Contoh: Jika diminta gambar simbol Pancasila, buat tabel berisi Deskripsi Visual (Contoh: "Simbol Rantai Emas") dan Keterangan (Contoh: "Latar belakang merah").
+    2. JIKA BENTUK SOAL ADALAH "MENJODOHKAN":
+       - Field "soal" WAJIB berisi TABEL MARKDOWN dengan dua kolom: Kolom A (Pertanyaan/Gambar) dan Kolom B (Pilihan Jawaban).
+    3. TEKS BACAAN: Tetap buat narasi/wacana yang mendalam minimal 2 paragraf sebelum tabel (jika ada).
+    4. DILARANG menggunakan kata 'stimulus' di dalam teks output.
+
+    WAJIB DALAM JSON:
+    {
+      "stimulus": "Narasi bacaan DAN Tabel Markdown representasi visual/data",
+      "soal": "Pertanyaan lengkap (Sertakan Tabel jika tipe Menjodohkan)",
+      "kunci": "Kunci jawaban yang akurat"
+    }`;
+
     const response = await ai.models.generateContent({
       model: DEFAULT_MODEL,
-      contents: `Buatkan 1 butir soal AKM SD Kelas ${item.kelas}. Indikator: ${item.indikatorSoal}, Bentuk: ${item.bentukSoal}. Format: SOAL: [Isi] KUNCI: [Jawaban].`,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            stimulus: { type: Type.STRING },
+            soal: { type: Type.STRING },
+            kunci: { type: Type.STRING }
+          },
+          required: ['stimulus', 'soal', 'kunci']
+        }
+      }
     });
-    const fullText = response.text || "";
-    const soalPart = fullText.match(/SOAL:([\s\S]*?)KUNCI:/i)?.[1]?.trim() || fullText;
-    const kunciPart = fullText.match(/KUNCI:([\s\S]*)/i)?.[1]?.trim() || "";
-    return { soal: soalPart, kunci: kunciPart };
+    
+    // FIX: Use .text property
+    return JSON.parse(response.text || '{"stimulus": "", "soal": "", "kunci": ""}');
   });
-};
-
-/**
- * Menyuntikkan API Key secara dinamis dari App.tsx (Firebase Listener)
- */
-export const setGeminiKey = (key: string) => {
-  if (key && key.trim() !== '') {
-    dynamicApiKey = key.trim();
-  }
 };

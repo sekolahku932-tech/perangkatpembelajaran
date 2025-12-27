@@ -26,7 +26,6 @@ import AIAssistant from './components/AIAssistant';
 import LoginPage from './components/LoginPage';
 import { User } from './types';
 import { auth, db, onAuthStateChanged, signOut, doc, getDoc, onSnapshot } from './services/firebase';
-import { setGeminiKey } from './services/geminiService';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -35,27 +34,14 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  // Ambil Kunci AI dari Cloud Database saat App dibuka
-  useEffect(() => {
-    const unsubAi = onSnapshot(doc(db, "settings", "ai_config"), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        if (data && data.key) {
-          setGeminiKey(data.key);
-        }
-      }
-    });
-    return () => unsubAi();
-  }, []);
-
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        try {
-          const userDocRef = doc(db, "users", firebaseUser.uid);
-          const userDoc = await getDoc(userDocRef);
-          if (userDoc && userDoc.exists()) {
-            setUser({ id: firebaseUser.uid, ...userDoc.data() } as User);
+        // Gunakan listener onSnapshot agar data user sinkron real-time
+        const unsubUser = onSnapshot(doc(db, "users", firebaseUser.uid), (snap) => {
+          if (snap.exists()) {
+            const userData = { id: firebaseUser.uid, ...snap.data() } as User;
+            setUser(userData);
           } else {
             setUser({ 
               id: firebaseUser.uid, 
@@ -68,13 +54,13 @@ const App: React.FC = () => {
               mapelDiampu: [] 
             });
           }
-        } catch (error) {
-          console.error("Error fetching user data:", error);
-        }
+          setLoading(false);
+        });
+        return () => unsubUser();
       } else {
         setUser(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
     return () => unsubscribe();
   }, []);

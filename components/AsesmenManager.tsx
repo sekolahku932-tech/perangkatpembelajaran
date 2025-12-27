@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Fase, Kelas, Siswa, AsesmenNilai, AsesmenInstrumen, ATPItem, MATA_PELAJARAN, SchoolSettings, User, KisiKisiItem } from '../types';
 import { 
   Plus, Trash2, Loader2, Cloud, Printer, CheckCircle2, AlertTriangle, 
-  PenTool, BarChart3, Wand2, ChevronRight, FileDown, Sparkles, Lock, Eye, EyeOff, AlertCircle, X
+  PenTool, BarChart3, Wand2, ChevronRight, FileDown, Sparkles, Lock, Eye, EyeOff, AlertCircle, X, BookText
 } from 'lucide-react';
 import { db, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from '../services/firebase';
 import { generateIndikatorSoal, generateButirSoal } from '../services/geminiService';
@@ -92,7 +91,7 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
     return kisikisi.filter(k => 
       k.fase === fase && k.kelas === kelas && k.semester === semester && k.mataPelajaran === mapel &&
       (namaAsesmen === '' || k.namaAsesmen === namaAsesmen)
-    ).sort((a, b) => a.nomorSoal - b.nomorSoal);
+    ).sort((a, b) => (a.nomorSoal || 0) - (b.nomorSoal || 0));
   }, [kisikisi, fase, kelas, semester, mapel, namaAsesmen]);
 
   const availableMapel = user.role === 'admin' ? MATA_PELAJARAN : user.mapelDiampu;
@@ -112,7 +111,7 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
       await addDoc(collection(db, "kisikisi"), {
         fase, kelas, semester, mataPelajaran: mapel, namaAsesmen: nameToUse,
         elemen: '', cp: '', kompetensi: 'Pengetahuan dan Pemahaman', tpId: '', tujuanPembelajaran: '',
-        indikatorSoal: '', jenis: 'Tes', bentukSoal: 'Pilihan Ganda', soal: '', kunciJawaban: '', nomorSoal: nextNo
+        indikatorSoal: '', jenis: 'Tes', bentukSoal: 'Pilihan Ganda', stimulus: '', soal: '', kunciJawaban: '', nomorSoal: nextNo
       });
       if (customName) setNamaAsesmen(customName);
     } catch (e) { console.error(e); }
@@ -159,7 +158,11 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
     setAiLoadingMap(prev => ({ ...prev, [`soal-${item.id}`]: true }));
     try {
       const result = await generateButirSoal(item);
-      await updateDoc(doc(db, "kisikisi", item.id), { soal: result.soal, kunciJawaban: result.kunci });
+      await updateDoc(doc(db, "kisikisi", item.id), { 
+        stimulus: result.stimulus,
+        soal: result.soal, 
+        kunciJawaban: result.kunci 
+      });
     } catch (e: any) {
       alert("Gagal memanggil AI: " + e.message);
     } finally { 
@@ -169,42 +172,85 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
 
   const renderSoalContent = (content: string, isPrint = false) => {
     if (!content) return null;
-    if (!content.includes('|')) return <div className="whitespace-pre-wrap">{content}</div>;
+    
     const lines = content.split('\n');
-    const tableLines: string[] = [];
-    const textBefore: string[] = [];
-    const textAfter: string[] = [];
-    let foundTable = false;
-    let tableDone = false;
+    const renderedParts: React.ReactNode[] = [];
+    let currentTableRows: string[][] = [];
+    let currentParagraphLines: string[] = [];
 
-    lines.forEach(line => {
-      const trimmed = line.trim();
-      const isTableRow = trimmed.startsWith('|') && trimmed.endsWith('|');
-      if (isTableRow && !tableDone) { foundTable = true; tableLines.push(line); } 
-      else if (foundTable) { tableDone = true; textAfter.push(line); } 
-      else { textBefore.push(line); }
+    const flushParagraph = (key: string) => {
+      if (currentParagraphLines.length > 0) {
+        renderedParts.push(
+          <div key={key} className="whitespace-pre-wrap text-justify leading-relaxed mb-4">
+            {currentParagraphLines.join('\n').trim()}
+          </div>
+        );
+        currentParagraphLines = [];
+      }
+    };
+
+    const flushTable = (key: string) => {
+      if (currentTableRows.length > 0) {
+        const rows = [...currentTableRows];
+        renderedParts.push(
+          <div key={key} className="overflow-x-auto my-4">
+            <table className={`border-collapse border-2 border-black w-full ${isPrint ? 'text-[10px]' : 'text-[12px]'} shadow-sm`}>
+              <thead>
+                <tr className="bg-slate-100">
+                  {rows[0].map((cell, i) => (
+                    <th key={i} className="border-2 border-black p-2 font-black text-center uppercase tracking-tight">
+                      {cell}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.slice(1).map((row, ri) => (
+                  <tr key={ri} className="hover:bg-slate-50 transition-colors">
+                    {row.map((cell, ci) => (
+                      <td key={ci} className={`border-2 border-black p-2 ${row.length === 2 ? 'w-1/2' : ''} ${ci === 0 || row.length === 2 ? 'text-center font-bold bg-slate-50/50' : 'text-left'}`}>
+                        {cell}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+        currentTableRows = [];
+      }
+    };
+
+    lines.forEach((line, index) => {
+      const trimmedLine = line.trim();
+      const isTableRow = trimmedLine.startsWith('|') && trimmedLine.endsWith('|');
+      const isSeparator = trimmedLine.includes('|') && trimmedLine.includes('---');
+
+      if (isTableRow) {
+        if (!isSeparator) {
+          const cells = trimmedLine
+            .split('|')
+            .map(c => c.trim())
+            .filter((_, i, arr) => i > 0 && i < arr.length - 1);
+          
+          if (cells.length > 0) {
+            if (currentParagraphLines.length > 0) flushParagraph(`p-${index}`);
+            currentTableRows.push(cells);
+          }
+        }
+      } else {
+        if (currentTableRows.length > 0) flushTable(`t-${index}`);
+        if (trimmedLine.length > 0 || currentParagraphLines.length > 0) {
+          currentParagraphLines.push(line);
+        }
+      }
     });
 
-    if (tableLines.length > 0) {
-      const rows: string[][] = [];
-      tableLines.forEach(line => {
-        if (!line.includes('---')) {
-          const cells = line.split('|').filter((cell, i, arr) => (i > 0 && i < arr.length - 1)).map(c => c.trim());
-          if (cells.length > 0) rows.push(cells);
-        }
-      });
-      return (
-        <div className="space-y-3">
-          {textBefore.length > 0 && <div className="whitespace-pre-wrap">{textBefore.join('\n').trim()}</div>}
-          <table className={`border-collapse border border-black w-full ${isPrint ? 'text-[10px]' : 'text-[12px]'} mt-2`}>
-            <thead><tr className="bg-slate-50">{rows[0]?.map((cell, i) => (<th key={i} className="border border-black p-2 font-black text-center">{cell}</th>))}</tr></thead>
-            <tbody>{rows.slice(1).map((row, ri) => (<tr key={ri}>{row.map((cell, ci) => (<td key={ci} className={`border border-black p-2 ${ci === 0 ? 'text-left' : 'text-center font-bold'}`}>{cell}</td>))}</tr>))}</tbody>
-          </table>
-          {textAfter.length > 0 && <div className="whitespace-pre-wrap">{textAfter.join('\n').trim()}</div>}
-        </div>
-      );
-    }
-    return <div className="whitespace-pre-wrap">{content}</div>;
+    flushParagraph('p-final');
+    flushTable('t-final');
+
+    return <div>{renderedParts}</div>;
   };
 
   const handlePrint = () => {
@@ -223,7 +269,7 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
                 .no-print { display: none !important; }
                 body { padding: 0; }
               }
-              table { border-collapse: collapse; width: 100% !important; }
+              table { border-collapse: collapse; }
               .break-inside-avoid { page-break-inside: avoid; }
             </style>
           </head>
@@ -272,6 +318,94 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
 
   const isClassLocked = user.role === 'guru' && user.teacherType === 'kelas';
 
+  if (isPrintMode) {
+    return (
+      <div className="bg-white p-12 min-h-screen text-slate-900 font-serif">
+        <div className="no-print fixed top-6 right-6 flex gap-3 z-[300]">
+          <button onClick={() => setIsPrintMode(false)} className="bg-slate-800 text-white px-6 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 shadow-2xl hover:bg-black transition-all">
+            <EyeOff size={16}/> KEMBALI
+          </button>
+          <button onClick={handlePrint} className="bg-rose-600 text-white px-6 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 shadow-2xl hover:bg-rose-700 transition-all">
+            <Printer size={16}/> CETAK PDF
+          </button>
+        </div>
+
+        <div ref={printRef}>
+          <KopSoalFormal activeTab={activeTab} />
+          
+          {activeTab === 'KISI_KISI' ? (
+            <div className="space-y-6">
+              <h3 className="text-center font-black uppercase text-sm mb-4">KISI-KISI, BUTIR SOAL, DAN KUNCI JAWABAN</h3>
+              <table className="w-full border-collapse border-2 border-black text-[7px]">
+                <thead>
+                  <tr className="bg-slate-100">
+                    <th className="border-2 border-black p-2 text-left w-20">ELEMEN / CP</th>
+                    <th className="border-2 border-black p-2 text-center w-16">LEVEL</th>
+                    <th className="border-2 border-black p-2 text-left w-24">INDIKATOR</th>
+                    <th className="border-2 border-black p-2 text-left">BACAAN & BUTIR SOAL (KONTEN)</th>
+                    <th className="border-2 border-black p-1 text-center w-10">KUNCI</th>
+                    <th className="border-2 border-black p-1 text-center w-8">NO</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredKisikisi.map((item) => (
+                    <tr key={item.id}>
+                      <td className="border-2 border-black p-2 leading-tight uppercase font-black">{item.elemen}</td>
+                      <td className="border-2 border-black p-2 text-center leading-tight uppercase font-bold">{item.kompetensi}</td>
+                      <td className="border-2 border-black p-2 italic leading-tight">{item.indikatorSoal}</td>
+                      <td className="border-2 border-black p-2 leading-relaxed">
+                         {item.stimulus && (
+                           <div className="mb-2 p-2 bg-slate-50 border border-slate-200 italic">
+                             {renderSoalContent(item.stimulus, true)}
+                           </div>
+                         )}
+                         <div>{renderSoalContent(item.soal, true)}</div>
+                      </td>
+                      <td className="border-2 border-black p-1 text-center font-black bg-slate-100">{item.kunciJawaban}</td>
+                      <td className="border-2 border-black p-1 text-center font-bold">{item.nomorSoal}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="space-y-10 mt-10">
+              <p className="font-black text-xs uppercase underline mb-6">PETUNJUK: KERJAKAN SOAL DI BAWAH INI DENGAN TELITI DAN JUJUR!</p>
+              
+              <table className="w-full border-none">
+                <tbody>
+                  {filteredKisikisi.map((item) => (
+                    <tr key={item.id} className="break-inside-avoid">
+                      <td className="w-8 pt-1 align-top font-black text-[14px]">{item.nomorSoal}.</td>
+                      <td className="pb-12 align-top">
+                         {item.stimulus && (
+                           <div className="mb-4">
+                              <p className="font-bold text-[11px] italic text-slate-700 mb-2 tracking-tight">Bacalah teks/data di bawah ini dengan saksama untuk menjawab soal!</p>
+                              <div className="p-6 border-[1.5px] border-black bg-slate-50 italic text-[12px] leading-relaxed shadow-sm">
+                                {renderSoalContent(item.stimulus, true)}
+                              </div>
+                           </div>
+                         )}
+                         <div className="text-[13px] leading-relaxed">
+                           {renderSoalContent(item.soal, true)}
+                         </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="mt-16 flex justify-between items-start text-[10px] px-12 font-sans uppercase font-black tracking-tighter break-inside-avoid">
+            <div className="text-center w-72"><p>Mengetahui,</p> <p>Kepala Sekolah</p> <div className="h-24"></div> <p className="border-b border-black inline-block min-w-[200px]">{settings.principalName}</p> <p className="no-underline mt-1 font-normal">NIP. {settings.principalNip}</p></div>
+            <div className="text-center w-72"><p>Bilato, .........................</p> <p>Guru Kelas/Mapel</p> <div className="h-24"></div> <p className="border-b border-black inline-block min-w-[200px]">{user?.name || '[Nama Guru]'}</p> <p className="no-underline mt-1 font-normal">NIP. {user?.nip || '...................'}</p></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 pb-20 animate-in fade-in duration-500">
       {showAddAsesmenModal && (
@@ -310,15 +444,15 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
           <div className="flex items-center gap-4">
             <div className="p-3 bg-rose-600 text-white rounded-2xl shadow-lg"><BarChart3 size={24} /></div>
             <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200">
-              <button onClick={() => setActiveTab('KISI_KISI')} className={`px-5 py-2 rounded-xl text-[10px] font-black ${activeTab === 'KISI_KISI' ? 'bg-white text-rose-600' : 'text-slate-500'}`}>KISI-KISI</button>
-              <button onClick={() => setActiveTab('SOAL')} className={`px-5 py-2 rounded-xl text-[10px] font-black ${activeTab === 'SOAL' ? 'bg-white text-rose-600' : 'text-slate-500'}`}>NASKAH SOAL</button>
+              <button onClick={() => setActiveTab('KISI_KISI')} className={`px-5 py-2 rounded-xl text-[10px] font-black ${activeTab === 'KISI_KISI' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500'}`}>KISI-KISI</button>
+              <button onClick={() => setActiveTab('SOAL')} className={`px-5 py-2 rounded-xl text-[10px] font-black ${activeTab === 'SOAL' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500'}`}>NASKAH SOAL</button>
             </div>
           </div>
           <div className="flex gap-3">
             <button onClick={() => setShowAddAsesmenModal(true)} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition-all shadow-lg hover:bg-indigo-700">
               <Plus size={16}/> BUAT BARU
             </button>
-            <button onClick={() => setIsPrintMode(true)} className="bg-slate-800 text-white px-5 py-2 rounded-xl text-xs font-black flex items-center gap-2 transition-all shadow-lg hover:bg-black"><Printer size={16}/> PRATINJAU</button>
+            <button onClick={() => setIsPrintMode(true)} className="bg-slate-800 text-white px-5 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition-all shadow-lg hover:bg-black"><Printer size={16}/> PRATINJAU</button>
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mt-6 p-5 bg-slate-50 rounded-2xl">
@@ -365,16 +499,17 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
           <div className="flex flex-col items-center justify-center py-40 gap-4 text-slate-400"><Loader2 size={48} className="animate-spin text-rose-600" /><p className="font-black text-xs uppercase tracking-widest">Sinkronisasi Cloud...</p></div>
         ) : activeTab === 'KISI_KISI' ? (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[1500px]">
+            <table className="w-full text-left border-collapse min-w-[1800px]">
               <thead>
                 <tr className="bg-slate-900 text-white text-[10px] font-black h-12 uppercase tracking-widest">
-                  <th className="px-6 py-2 w-16 text-center">No</th>
-                  <th className="px-6 py-2 w-56">Elemen & TP</th>
-                  <th className="px-6 py-2 w-64">Indikator Soal (AI)</th>
+                  <th className="px-6 py-2 w-16 text-center border-r border-white/5">Idx</th>
+                  <th className="px-6 py-2 w-48">Elemen & TP</th>
+                  <th className="px-6 py-2 w-40 text-center">Level Kognitif</th>
                   <th className="px-6 py-2 w-40 text-center">Bentuk</th>
-                  <th className="px-6 py-2 w-96">Butir Soal</th>
-                  <th className="px-6 py-2 w-32 text-center">Kunci</th>
-                  <th className="px-6 py-2 w-20 text-center">Aksi</th>
+                  <th className="px-6 py-2 w-56">Indikator Soal (AI)</th>
+                  <th className="px-6 py-2 w-[700px]">Konten Soal (Bacaan, Pertanyaan, Kunci)</th>
+                  <th className="px-6 py-2 w-24 text-center border-l border-white/5">No Soal</th>
+                  <th className="px-6 py-2 w-16 text-center">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -388,33 +523,76 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
                       </select>
                       <div className="text-[9px] text-slate-500 italic leading-tight">{item.tujuanPembelajaran}</div>
                     </td>
+                    <td className="px-6 py-4">
+                      <select 
+                        className="w-full bg-indigo-50 border border-indigo-100 rounded-xl p-2.5 text-[10px] font-black text-indigo-700 outline-none"
+                        value={item.kompetensi}
+                        onChange={e => updateKisiKisi(item.id, 'kompetensi', e.target.value as any)}
+                      >
+                        <option value="Pengetahuan dan Pemahaman">Pengetahuan dan Pemahaman</option>
+                        <option value="Aplikasi">Aplikasi</option>
+                        <option value="Penalaran">Penalaran</option>
+                      </select>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <select className="w-full text-[10px] font-bold p-1.5 border rounded-xl bg-slate-50 outline-none" value={item.bentukSoal} onChange={e => updateKisiKisi(item.id, 'bentukSoal', e.target.value as any)}>
+                        <option>Pilihan Ganda</option>
+                        <option>Pilihan Ganda Kompleks</option>
+                        <option>Menjodohkan</option>
+                        <option>Isian</option>
+                        <option>Uraian</option>
+                      </select>
+                    </td>
                     <td className="px-6 py-4 relative group">
-                      <textarea className="w-full bg-white border border-slate-200 rounded-xl p-2 text-[10px] font-medium min-h-[80px]" value={item.indikatorSoal} onChange={e => updateKisiKisi(item.id, 'indikatorSoal', e.target.value)} />
+                      <textarea className="w-full bg-white border border-slate-200 rounded-xl p-2 text-[10px] font-medium min-h-[100px]" value={item.indikatorSoal} onChange={e => updateKisiKisi(item.id, 'indikatorSoal', e.target.value)} />
                       <button onClick={() => generateIndikatorAI(item)} className="absolute bottom-6 right-8 text-indigo-600 bg-white p-1 rounded shadow-sm">
                         {aiLoadingMap[`ind-${item.id}`] ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14}/>}
                       </button>
                     </td>
-                    <td className="px-6 py-4">
-                      <select className="w-full text-[10px] font-bold p-1 border rounded" value={item.bentukSoal} onChange={e => updateKisiKisi(item.id, 'bentukSoal', e.target.value)}><option>Pilihan Ganda</option><option>Pilihan Ganda Kompleks</option><option>Isian</option><option>Uraian</option></select>
-                    </td>
-                    <td className="px-6 py-4 relative group">
-                       <textarea className="w-full bg-white border border-slate-200 rounded-xl p-2 text-[11px] font-medium min-h-[140px]" value={item.soal} onChange={e => updateKisiKisi(item.id, 'soal', e.target.value)} />
-                       <button onClick={() => generateSoalAI(item)} className="absolute bottom-6 right-8 bg-rose-600 text-white p-1.5 rounded-lg shadow-md">
-                         {aiLoadingMap[`soal-${item.id}`] ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14}/>}
+                    <td className="px-6 py-4 bg-slate-50/30 relative group">
+                       <div className="grid grid-cols-2 gap-4 h-full">
+                          <div className="flex flex-col h-full">
+                             <div className="flex items-center gap-1.5 text-[9px] font-black text-indigo-600 uppercase mb-2">
+                               <BookText size={12}/> Teks Bacaan / Tabel Data
+                             </div>
+                             <textarea className="flex-1 w-full bg-white border border-slate-200 rounded-xl p-2 text-[10px] font-medium italic leading-relaxed min-h-[160px]" value={item.stimulus} placeholder="Teks bacaan atau Tabel Markdown..." onChange={e => updateKisiKisi(item.id, 'stimulus', e.target.value)} />
+                          </div>
+                          <div className="space-y-3 flex flex-col">
+                             <div>
+                               <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Pertanyaan & Opsi / Pilihan:</span>
+                               <textarea className="w-full bg-white border border-slate-200 rounded-xl p-2 text-[11px] font-bold min-h-[120px]" value={item.soal} onChange={e => updateKisiKisi(item.id, 'soal', e.target.value)} placeholder="Butir soal (gunakan tabel jika menjodohkan)..." />
+                             </div>
+                             <div className="flex items-center gap-2 mt-auto">
+                               <span className="text-[9px] font-black uppercase text-slate-400">Kunci:</span>
+                               <input className="flex-1 bg-white border border-slate-200 rounded-lg p-1.5 text-[10px] font-black text-indigo-600" value={item.kunciJawaban} onChange={e => updateKisiKisi(item.id, 'kunciJawaban', e.target.value)} placeholder="Kunci..." />
+                             </div>
+                          </div>
+                       </div>
+                       <button onClick={() => generateSoalAI(item)} className="absolute bottom-6 right-4 bg-rose-600 text-white p-2.5 rounded-2xl shadow-xl hover:scale-110 active:scale-95 transition-all z-10">
+                         {aiLoadingMap[`soal-${item.id}`] ? <Loader2 size={18} className="animate-spin" /> : <Wand2 size={18}/>}
                        </button>
                     </td>
-                    <td className="px-6 py-4 text-center"><input className="w-full text-[10px] text-center font-medium p-1 border rounded" value={item.kunciJawaban} onChange={e => updateKisiKisi(item.id, 'kunciJawaban', e.target.value)} /></td>
-                    <td className="px-6 py-4 text-center"><button onClick={() => deleteDoc(doc(db, "kisikisi", item.id))} className="text-red-400 hover:text-red-600"><Trash2 size={16}/></button></td>
+                    <td className="px-6 py-4 text-center border-l border-slate-50 bg-slate-50/30">
+                      <input 
+                        type="number" 
+                        className="w-16 text-[12px] text-center font-black p-2 border rounded-xl bg-white shadow-sm outline-none focus:ring-2 focus:ring-indigo-600" 
+                        value={item.nomorSoal} 
+                        onChange={e => updateKisiKisi(item.id, 'nomorSoal', parseInt(e.target.value) || 0)} 
+                      />
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <button onClick={() => deleteDoc(doc(db, "kisikisi", item.id))} className="text-red-400 hover:text-red-600"><Trash2 size={16}/></button>
+                    </td>
                   </tr>
                 ))}
-                <tr><td colSpan={7} className="p-4"><button onClick={() => handleAddKisikisiRow()} className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl text-xs font-black text-slate-400 hover:border-rose-300 hover:text-rose-500 transition-all">+ TAMBAH BARIS</button></td></tr>
+                <tr><td colSpan={8} className="p-4"><button onClick={() => handleAddKisikisiRow()} className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl text-xs font-black text-slate-400 hover:border-rose-300 hover:text-rose-500 transition-all">+ TAMBAH BARIS ASESMEN</button></td></tr>
               </tbody>
             </table>
           </div>
         ) : (
-          <div className="p-10 space-y-8 bg-slate-50">
-             <div className="max-w-3xl mx-auto space-y-4">
-                <div className="grid grid-cols-2 gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-8">
+          <div className="p-10 bg-slate-50 min-h-[600px]">
+             <div className="max-w-4xl mx-auto">
+                <div className="grid grid-cols-2 gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-12">
                   <div>
                     <label className="block text-[10px] font-black text-slate-400 uppercase mb-1">Hari / Tanggal Pelaksanaan</label>
                     <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-bold" value={hariTanggal} onChange={e => setHariTanggal(e.target.value)} placeholder="Contoh: Senin, 12 Juni 2024" />
@@ -424,12 +602,49 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
                     <input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-bold" value={waktuPengerjaan} onChange={e => setWaktuPengerjaan(e.target.value)} placeholder="Contoh: 90 Menit" />
                   </div>
                 </div>
-                {filteredKisikisi.map(item => (
-                    <div key={item.id} className="flex gap-4 items-start p-6 bg-white rounded-2xl shadow-sm border border-slate-100">
-                      <span className="font-black text-slate-300">{item.nomorSoal}.</span>
-                      <div className="flex-1">{renderSoalContent(item.soal)}</div>
-                    </div>
-                ))}
+
+                <div className="space-y-1 bg-white p-1 rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+                   <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest h-10">
+                          <th className="w-16 px-4 text-center">No</th>
+                          <th className="px-6 text-left">Naskah Soal & Bacaan</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {filteredKisikisi.map((item) => (
+                           <tr key={item.id} className="group hover:bg-slate-50/50 transition-colors">
+                              <td className="py-8 px-4 align-top text-center">
+                                 <span className="inline-flex items-center justify-center w-10 h-10 bg-slate-100 text-slate-900 rounded-xl font-black text-lg shadow-sm border border-slate-200 group-hover:bg-rose-600 group-hover:text-white transition-all">
+                                    {item.nomorSoal}
+                                 </span>
+                              </td>
+                              <td className="py-8 px-6 align-top">
+                                 <div className="space-y-6">
+                                    {item.stimulus && (
+                                      <div>
+                                         <p className="font-bold text-[11px] italic text-slate-600 mb-2">Bacalah teks/data berikut untuk menjawab soal nomor {item.nomorSoal}:</p>
+                                         <div className="p-6 bg-slate-50 rounded-[2rem] border-2 border-indigo-100 shadow-sm relative overflow-hidden mb-6">
+                                            <div className="absolute top-0 right-0 p-4 opacity-5 text-indigo-600"><BookText size={64}/></div>
+                                            <div className="text-sm leading-relaxed text-slate-700 italic">{renderSoalContent(item.stimulus)}</div>
+                                         </div>
+                                      </div>
+                                    )}
+                                    <div className="text-slate-800 text-sm leading-relaxed pr-10">
+                                       {renderSoalContent(item.soal)}
+                                    </div>
+                                 </div>
+                              </td>
+                           </tr>
+                        ))}
+                      </tbody>
+                   </table>
+                   {filteredKisikisi.length === 0 && (
+                     <div className="py-40 text-center text-slate-400 italic uppercase font-black text-xs tracking-widest">
+                       Belum ada butir soal yang dibuat.
+                     </div>
+                   )}
+                </div>
              </div>
           </div>
         )}

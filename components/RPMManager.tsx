@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Fase, Kelas, RPMItem, ATPItem, PromesItem, CapaianPembelajaran, MATA_PELAJARAN, DIMENSI_PROFIL, SchoolSettings, User } from '../types';
-import { Plus, Trash2, Rocket, Sparkles, Loader2, CheckCircle2, Printer, Cloud, ClipboardList, Info, FileText, Split, AlertTriangle, FileDown, Wand2, PencilLine, Lock, Heart, Brain, Zap, Smile, Search, RefreshCw, CheckSquare, Square, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Rocket, Sparkles, Loader2, CheckCircle2, Printer, Cloud, ClipboardList, Info, FileText, Split, AlertTriangle, FileDown, Wand2, PencilLine, Lock, Heart, Brain, Zap, Smile, Search, RefreshCw, CheckSquare, Square, AlertCircle, Cpu } from 'lucide-react';
 import { generateRPMContent, generateAssessmentDetails, recommendPedagogy } from '../services/geminiService';
 import { db, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from '../services/firebase';
 
@@ -253,18 +253,23 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
     });
   }, [rpmList, atpData, filterFase, filterKelas, filterSemester, filterMapel]);
 
-  const splitByMeeting = (text: string) => {
-    if (!text) return [];
+  const splitByMeeting = (text: string, count: number) => {
+    if (!text) return Array(count).fill('');
     const pattern = /Pertemuan\s*\d+\s*:?/gi;
-    const parts = text.split(pattern);
-    return parts.filter(p => p.trim().length > 0).map(p => p.trim());
+    const parts = text.split(pattern).filter(p => p !== undefined);
+    if (parts[0]?.trim() === '') parts.shift();
+    const result = Array(count).fill('');
+    for (let i = 0; i < count; i++) {
+      result[i] = (parts[i] || '').trim();
+    }
+    return result;
   };
 
   const highlightContent = (content: string) => {
     const keywords = ['Berkesadaran', 'Bermakna', 'Menggembirakan', 'Mindful', 'Meaningful', 'Joyful'];
     let result = content;
     keywords.forEach(word => {
-      const regex = new RegExp(`(${word})`, 'gi');
+      const regex = new RegExp(`\\b(${word})\\b`, 'gi');
       result = result.replace(regex, '<strong class="text-black font-black">$1</strong>');
     });
     return result;
@@ -274,21 +279,24 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
     if (!text) return '-';
     let processedText = text;
     if (cleanMeetingTags) processedText = text.replace(/Pertemuan\s*\d+\s*:?\s*/gi, '');
-    const lines = processedText.split(/\n+/).map(l => l.trim()).filter(l => l.length > 0);
-    const steps = lines.length > 1 ? lines : processedText.split(/(?=\d+\.)/g).map(s => s.trim()).filter(s => s.length > 0);
-    if (steps.length <= 1 && !/^\d+\./.test(steps[0] || '')) {
-      return <p className="whitespace-pre-wrap leading-tight text-justify" dangerouslySetInnerHTML={{ __html: highlightContent(processedText) }}></p>;
+    
+    let lines = processedText.split(/\n+/).map(l => l.trim()).filter(l => l.length > 0);
+    
+    if (lines.length === 1) {
+      const potentialSteps = processedText.split(/(?<=\.)\s+(?=[A-Z0-9])/g).map(s => s.trim()).filter(s => s.length > 0);
+      if (potentialSteps.length > 1) {
+        lines = potentialSteps;
+      }
     }
+
     return (
-      <ul className="space-y-3 list-none">
-        {steps.map((step, i) => {
-          const match = step.match(/^(\d+\.|-|\*)\s*(.*)/);
-          const marker = match ? match[1] : `${i + 1}.`;
-          const content = match ? match[2] : step;
+      <ul className="space-y-2 list-none">
+        {lines.map((step, i) => {
+          const cleanedStep = step.replace(/^(\d+\.|\-|\*)\s*/, '');
           return (
             <li key={i} className="flex gap-2 items-start">
-              <span className="shrink-0 font-black text-slate-800 mt-0.5 min-w-[1.2rem]">{marker}</span>
-              <span className="leading-tight text-justify flex-1" dangerouslySetInnerHTML={{ __html: highlightContent(content) }}></span>
+              <span className="shrink-0 font-black text-slate-800 mt-0.5 min-w-[1.2rem]">{i + 1}.</span>
+              <span className="leading-tight text-justify flex-1" dangerouslySetInnerHTML={{ __html: highlightContent(cleanedStep) }}></span>
             </li>
           );
         })}
@@ -395,11 +403,13 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
 
   if (isPrintMode && isEditing) {
     const rpm = rpmList.find(r => r.id === isEditing)!;
+    const count = rpm.jumlahPertemuan || 1;
     const asesmenData = parseAsesmen(rpm.asesmenTeknik);
     const datumDate = getRPMDate(rpm);
-    const awalParts = splitByMeeting(rpm.kegiatanAwal);
-    const intiParts = splitByMeeting(rpm.kegiatanInti);
-    const penutupParts = splitByMeeting(rpm.kegiatanPenutup);
+    
+    const awalParts = splitByMeeting(rpm.kegiatanAwal, count);
+    const intiParts = splitByMeeting(rpm.kegiatanInti, count);
+    const penutupParts = splitByMeeting(rpm.kegiatanPenutup, count);
     
     const SidebarSection = ({ title }: { title: string }) => (
       <div className="w-12 uppercase font-black text-[9px] text-black border-r-2 border-black shrink-0 text-center flex items-center justify-center bg-slate-50/50">
@@ -431,8 +441,8 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
                 <tr className="border-b border-black"><td className="p-1.5 w-48 font-bold bg-slate-50 border-r-2 border-black uppercase text-[9px]">Tahun / Semester</td><td className="p-1.5">{activeYear} / {rpm.semester} ({rpm.semester === '1' ? 'Ganjil' : 'Genap'})</td></tr>
                 <tr className="border-b border-black"><td className="p-1.5 w-48 font-bold bg-slate-50 border-r-2 border-black uppercase text-[9px]">Mata Pelajaran</td><td className="p-1.5 font-bold uppercase">{rpm.mataPelajaran}</td></tr>
                 <tr className="border-b border-black"><td className="p-1.5 w-48 font-bold bg-slate-50 border-r-2 border-black uppercase text-[9px]">Kelas / Fase</td><td className="p-1.5 font-bold">{rpm.kelas} / {rpm.fase.replace('Fase ', '')}</td></tr>
-                <tr className="border-b border-black"><td className="p-1.5 w-48 font-bold bg-slate-50 border-r-2 border-black uppercase text-[9px]">Bab / Topik</td><td className="p-1.5 font-bold uppercase">{rpm.materi}</td></tr>
-                <tr><td className="p-1.5 w-48 font-bold bg-slate-50 border-r-2 border-black uppercase text-[9px]">Alokasi Waktu</td><td className="p-1.5 font-bold">{rpm.alokasiWaktu}</td></tr>
+                <tr className="border-b border-black"><td className="p-1.5 w-48 font-bold bg-slate-50 border-r-2 border-black uppercase text-[9px]">Bab / Topik</td><td className="p-1.5 font-bold uppercase">{rpm.materi} {rpm.subMateri ? `(${rpm.subMateri})` : ''}</td></tr>
+                <tr><td className="p-1.5 w-48 font-bold bg-slate-50 border-r-2 border-black uppercase text-[9px]">Alokasi Waktu</td><td className="p-1.5 font-bold">{rpm.alokasiWaktu} ({count} Pertemuan)</td></tr>
               </tbody>
             </table>
           </div>
@@ -440,50 +450,50 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
           <div className="flex border-2 border-black mb-6 break-inside-avoid">
             <SidebarSection title="IDENTIFIKASI" />
             <div className="flex-1 p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                   <p className="font-bold text-[9px] uppercase text-slate-500 mb-1">Asesmen Awal (Dari ATP):</p>
-                   <div className="p-3 bg-slate-50 border-2 border-dotted border-slate-300 italic text-[10.5px] leading-tight rounded-xl">
-                    {rpm.asesmenAwal || '-'}
-                   </div>
-                </div>
-                <div>
-                  <p className="font-bold text-[9px] uppercase text-slate-500 mb-2">Dimensi Profil Lulusan:</p>
-                  <div className="space-y-2">
-                    {DIMENSI_PROFIL.map((d, i) => {
-                      const isChecked = rpm.dimensiProfil.includes(d);
-                      return (
-                        <div key={i} className="flex items-start gap-2">
-                          <div className="mt-0.5 transition-all">
-                            {isChecked ? <CheckSquare size={13} className="text-blue-600" /> : <Square size={13} className="text-slate-300" />}
-                          </div>
-                          <div className="flex flex-col">
-                            <span className={`text-[8px] font-black uppercase leading-none ${isChecked ? 'text-blue-600' : 'text-slate-300'}`}>DPL {i + 1}</span>
-                            <span className={`text-[10px] font-bold leading-tight ${isChecked ? 'text-slate-900' : 'text-slate-400'}`}>{d}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
+              <div>
+                 <p className="font-bold text-[9px] uppercase text-slate-500 mb-1">Asesmen Awal (Dari ATP):</p>
+                 <div className="p-3 bg-slate-50 border-2 border-dotted border-slate-300 italic text-[10.5px] leading-tight rounded-xl">
+                  {rpm.asesmenAwal || '-'}
+                 </div>
               </div>
               <div>
-                <p className="font-bold text-[9px] uppercase text-slate-500 mb-1">Tujuan Pembelajaran:</p>
-                <div className="p-4 border-2 border-blue-600 bg-blue-50/20 rounded-[1.5rem] text-blue-900 font-black text-[12px] text-center leading-tight shadow-sm">
-                  {rpm.tujuanPembelajaran}
+                <p className="font-bold text-[9px] uppercase text-slate-500 mb-2">Dimensi Profil Lulusan (DPL):</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                  {DIMENSI_PROFIL.map((d, i) => {
+                    const isChecked = rpm.dimensiProfil.includes(d);
+                    return (
+                      <div key={i} className="flex items-start gap-2">
+                        <div className="mt-0.5 transition-all">
+                          {isChecked ? <CheckSquare size={12} className="text-blue-600" /> : <Square size={12} className="text-slate-300" />}
+                        </div>
+                        <div className="flex flex-col">
+                          <span className={`text-[7px] font-black uppercase leading-none ${isChecked ? 'text-blue-600' : 'text-slate-300'}`}>DPL {i + 1}</span>
+                          <span className={`text-[9.5px] font-bold leading-tight ${isChecked ? 'text-slate-900' : 'text-slate-400'}`}>{d}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
-              <div className="break-inside-avoid">
-                <p className="font-bold text-[9px] uppercase text-slate-500 mb-1">Praktik Pedagogis:</p>
-                <p className="text-[10.5px] leading-tight text-justify italic font-medium">{rpm.praktikPedagogis}</p>
               </div>
             </div>
           </div>
 
           <div className="flex border-2 border-black mb-6 break-inside-avoid">
             <SidebarSection title="DESAIN" />
-            <div className="flex-1 p-4">
-              <div className="grid grid-cols-3 gap-6">
+            <div className="flex-1 p-4 space-y-5">
+              <div>
+                <p className="font-black text-[9px] uppercase text-slate-500 mb-1">Tujuan Pembelajaran:</p>
+                <div className="p-4 border-2 border-blue-600 bg-blue-50/20 rounded-[1.5rem] text-blue-900 font-black text-[12px] text-center leading-tight shadow-sm">
+                  {rpm.tujuanPembelajaran}
+                </div>
+              </div>
+              <div className="break-inside-avoid">
+                <p className="font-black text-[9px] uppercase text-slate-500 mb-1">Praktik Pedagogis (Model):</p>
+                <p className="text-[10.5px] leading-tight text-justify italic font-medium bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  {rpm.praktikPedagogis}
+                </p>
+              </div>
+              <div className="grid grid-cols-3 gap-6 pt-2 border-t border-slate-100">
                 <div className="space-y-1"><p className="font-black text-[9px] uppercase text-black">Kemitraan:</p><p className="text-[10.5px] leading-tight">{rpm.kemitraan || '-'}</p></div>
                 <div className="space-y-1"><p className="font-black text-[9px] uppercase text-black">Lingkungan:</p><p className="text-[10.5px] leading-tight">{rpm.lingkunganBelajar || '-'}</p></div>
                 <div className="space-y-1"><p className="font-black text-[9px] uppercase text-black">Digital:</p><p className="text-[10.5px] leading-tight">{rpm.pemanfaatanDigital || '-'}</p></div>
@@ -494,10 +504,10 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
           <div className="flex border-2 border-black break-inside-avoid mb-6">
             <SidebarSection title="PENGALAMAN BELAJAR" />
             <div className="flex-1">
-               {Array.from({ length: rpm.jumlahPertemuan || 1 }).map((_, mIdx) => (
+               {Array.from({ length: count }).map((_, mIdx) => (
                   <div key={mIdx} className="p-5 space-y-6 border-b-2 last:border-b-0 border-black break-inside-avoid">
                     <div className="flex items-center gap-4">
-                       <div className="bg-slate-900 text-white border-2 border-black px-6 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">SESI {mIdx + 1}</div>
+                       <div className="bg-slate-900 text-white border-2 border-black px-6 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">PERTEMUAN {mIdx + 1}</div>
                        <div className="flex-1 h-0.5 bg-slate-200"></div>
                     </div>
                     <div className="space-y-5">
@@ -556,7 +566,7 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
       {message && (<div className={`fixed top-24 right-8 z-[100] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border ${message.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800'}`}><CheckCircle2 size={20}/><span className="text-sm font-black uppercase tracking-tight">{message.text}</span></div>)}
       {deleteConfirmId && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[250] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95">
+          <div className="bg-white rounded-[32px] shadow-2xl w-full max-sm overflow-hidden animate-in zoom-in-95">
             <div className="p-8 text-center"><div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6 mx-auto"><AlertTriangle size={32} /></div><h3 className="text-xl font-black text-slate-900 uppercase mb-2">Hapus RPM</h3><p className="text-slate-500 font-medium text-sm leading-relaxed">Hapus baris RPM dari database cloud?</p></div>
             <div className="p-4 bg-slate-50 flex gap-3"><button onClick={() => setDeleteConfirmId(null)} className="flex-1 px-6 py-3 rounded-xl text-xs font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-100 transition-all">BATAL</button><button onClick={executeDelete} className="flex-1 px-6 py-3 rounded-xl text-xs font-black text-white bg-red-600 hover:bg-red-700 shadow-lg">YA, HAPUS</button></div>
           </div>
@@ -571,6 +581,21 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
                <div className="flex gap-2"><button onClick={() => setIsPrintMode(true)} className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 rounded-2xl text-[10px] font-black flex items-center gap-2 transition-all"><Printer size={14}/> PRATINJAU</button><button onClick={() => setIsEditing(null)} className="px-5 py-2.5 bg-red-600 hover:bg-red-700 rounded-2xl text-[10px] font-black transition-all">TUTUP</button></div>
             </div>
             <div className="p-8 overflow-y-auto space-y-10 no-scrollbar bg-white">
+              {isLoadingAI && (
+                <div className="fixed inset-0 bg-white/80 backdrop-blur-sm z-[200] flex flex-col items-center justify-center gap-6 animate-in fade-in">
+                  <div className="relative">
+                    <div className="w-24 h-24 border-4 border-cyan-100 border-t-cyan-600 rounded-full animate-spin"></div>
+                    <Cpu className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-cyan-600 animate-pulse" size={32} />
+                  </div>
+                  <div className="text-center">
+                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-2">Analisis AI Berjalan</h3>
+                    <p className="text-slate-500 font-medium max-w-xs leading-relaxed italic">
+                      "Menyusun alur mendalam berbasis 3M untuk {rpmList.find(r => r.id === isEditing)?.jumlahPertemuan} sesi..."
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-6">
                 <div className="flex items-center gap-2 border-b border-slate-100 pb-2"><div className="w-1.5 h-6 bg-blue-600 rounded-full"></div><h4 className="font-black text-slate-800 uppercase text-xs tracking-widest">1. Identitas & Sesi</h4></div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -615,11 +640,11 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
               </div>
 
               <div className="space-y-6">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2"><div className="flex items-center gap-2"><div className="w-1.5 h-6 bg-cyan-600 rounded-full"></div><h4 className="font-black text-slate-800 uppercase text-xs tracking-widest">2. Alur Pembelajaran Mendalam (Struktur 3M)</h4></div><button onClick={() => handleGenerateAI(isEditing!)} disabled={isLoadingAI} className="flex items-center gap-2 bg-cyan-600 text-white px-8 py-3 rounded-2xl text-xs font-black shadow-xl hover:bg-cyan-700 transition-all active:scale-95 disabled:opacity-50">{isLoadingAI ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16}/>} ANALISIS AI UNTUK {rpmList.find(r => r.id === isEditing)?.jumlahPertemuan || 1} SESI</button></div>
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2"><div className="flex items-center gap-2"><div className="w-1.5 h-6 bg-cyan-600 rounded-full"></div><h4 className="font-black text-slate-800 uppercase text-xs tracking-widest">2. Alur Pembelajaran Mendalam (Struktur 3M)</h4></div><button onClick={() => handleGenerateAI(isEditing!)} disabled={isLoadingAI} className="flex items-center gap-2 bg-cyan-600 text-white px-8 py-3 rounded-2xl text-xs font-black shadow-xl hover:bg-cyan-700 transition-all active:scale-95 disabled:opacity-50">{isLoadingAI ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16}/>} ANALISIS CEPAT AI</button></div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="p-6 bg-blue-50 rounded-[40px] border border-blue-100 flex flex-col group/col"><h5 className="text-[10px] font-black text-blue-900 uppercase mb-4 flex items-center gap-2"><Brain size={14}/> I. MEMAHAMI</h5><textarea className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-xs min-h-[200px] focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={rpmList.find(r => r.id === isEditing)?.kegiatanAwal} placeholder="Langkah membangun pemahaman (Gunakan Enter untuk setiap butir)..." onChange={e => updateRPM(isEditing!, 'kegiatanAwal', e.target.value)} /></div>
-                  <div className="p-6 bg-emerald-50 rounded-[40px] border border-emerald-100 flex flex-col group/col"><h5 className="text-[10px] font-black text-emerald-900 uppercase mb-4 flex items-center gap-2"><Zap size={14}/> II. MENGAPLIKASI</h5><textarea className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-xs min-h-[200px] focus:ring-2 focus:ring-emerald-500 outline-none transition-all" value={rpmList.find(r => r.id === isEditing)?.kegiatanInti} placeholder="Langkah penerapan praktik (Gunakan Enter untuk setiap butir)..." onChange={e => updateRPM(isEditing!, 'kegiatanInti', e.target.value)} /></div>
-                  <div className="p-6 bg-rose-50 rounded-[40px] border border-rose-100 flex flex-col group/col"><h5 className="text-[10px] font-black text-rose-900 uppercase mb-4 flex items-center gap-2"><RefreshCw size={14}/> III. MEREFLEKSI</h5><textarea className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-xs min-h-[200px] focus:ring-2 focus:ring-rose-500 outline-none transition-all" value={rpmList.find(r => r.id === isEditing)?.kegiatanPenutup} placeholder="Langkah meninjau makna (Gunakan Enter untuk setiap butir)..." onChange={e => updateRPM(isEditing!, 'kegiatanPenutup', e.target.value)} /></div>
+                  <div className="p-6 bg-blue-50 rounded-[40px] border border-blue-100 flex flex-col group/col"><h5 className="text-[10px] font-black text-blue-900 uppercase mb-4 flex items-center gap-2"><Brain size={14}/> I. MEMAHAMI</h5><textarea className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-xs min-h-[250px] focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={rpmList.find(r => r.id === isEditing)?.kegiatanAwal} placeholder="Pertemuan 1: Langkah pemahaman...\n\nPertemuan 2: dst..." onChange={e => updateRPM(isEditing!, 'kegiatanAwal', e.target.value)} /></div>
+                  <div className="p-6 bg-emerald-50 rounded-[40px] border border-emerald-100 flex flex-col group/col"><h5 className="text-[10px] font-black text-emerald-900 uppercase mb-4 flex items-center gap-2"><Zap size={14}/> II. MENGAPLIKASI</h5><textarea className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-xs min-h-[250px] focus:ring-2 focus:ring-emerald-500 outline-none transition-all" value={rpmList.find(r => r.id === isEditing)?.kegiatanInti} placeholder="Pertemuan 1: Langkah praktik...\n\nPertemuan 2: dst..." onChange={e => updateRPM(isEditing!, 'kegiatanInti', e.target.value)} /></div>
+                  <div className="p-6 bg-rose-50 rounded-[40px] border border-rose-100 flex flex-col group/col"><h5 className="text-[10px] font-black text-rose-900 uppercase mb-4 flex items-center gap-2"><RefreshCw size={14}/> III. MEREFLEKSI</h5><textarea className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-xs min-h-[250px] focus:ring-2 focus:ring-rose-500 outline-none transition-all" value={rpmList.find(r => r.id === isEditing)?.kegiatanPenutup} placeholder="Pertemuan 1: Langkah refleksi...\n\nPertemuan 2: dst..." onChange={e => updateRPM(isEditing!, 'kegiatanPenutup', e.target.value)} /></div>
                 </div>
               </div>
 

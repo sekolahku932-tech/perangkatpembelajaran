@@ -5,7 +5,7 @@ import {
   User as UserIcon, Bot as BotIcon, Loader2 as LoaderIcon, 
   Maximize2 as MaxIcon, Minimize2 as MinIcon, AlertCircle as AlertIcon, 
   Settings as SettingsIcon, AlertTriangle as WarningIcon, Terminal as TermIcon, 
-  ExternalLink as LinkIcon, RefreshCw as RetryIcon
+  RefreshCw as RetryIcon, Trash2 as ClearIcon
 } from 'lucide-react';
 import { startAIChat } from '../services/geminiService';
 import { User as UserType } from '../types';
@@ -15,7 +15,7 @@ interface Message {
   text: string;
   isError?: boolean;
   isRetrying?: boolean;
-  errorType?: 'AUTH' | 'MODEL' | 'QUOTA' | 'GENERIC';
+  errorType?: 'AUTH' | 'MODEL' | 'QUOTA' | 'GENERIC' | 'INVALID_KEY';
   rawError?: string;
 }
 
@@ -40,6 +40,13 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
     }
   }, [messages]);
 
+  const resetChat = () => {
+    chatInstance.current = null;
+    setMessages([
+      { role: 'model', text: `Percakapan telah direset. Saya siap membantu kembali.` }
+    ]);
+  };
+
   const handleSendMessage = async () => {
     if (!input.trim() || isLoading) return;
 
@@ -50,7 +57,10 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
 
     try {
       if (!chatInstance.current) {
-        chatInstance.current = await startAIChat(`Anda adalah asisten AI guru SDN 5 Bilato. Nama guru: ${user.name}. Gunakan bahasa Indonesia yang santun dan profesional.`);
+        // Inisialisasi chat menggunakan logic terpusat
+        chatInstance.current = await startAIChat(
+          `Anda adalah asisten AI guru SDN 5 Bilato. Nama guru: ${user.name}. Gunakan bahasa Indonesia yang santun, profesional, dan ringkas.`
+        );
       }
 
       const result = await chatInstance.current.sendMessageStream({ message: userMessage });
@@ -73,13 +83,13 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
       
       if (rawMsg === 'API_KEY_MISSING') {
         errorType = 'AUTH';
-        errorText = 'Kunci API Gemini tidak terdeteksi. Silakan masukkan kunci di menu Pengaturan.';
+        errorText = 'Sistem belum terkonfigurasi dengan kunci API yang valid. Silakan hubungi Admin.';
+      } else if (rawMsg === 'INVALID_API_KEY') {
+        errorType = 'INVALID_KEY';
+        errorText = 'Kunci API sistem tidak valid atau telah dinonaktifkan oleh Google.';
       } else if (rawMsg === 'QUOTA_EXCEEDED' || rawMsg.includes('429') || rawMsg.includes('RESOURCE_EXHAUSTED')) {
         errorType = 'QUOTA';
-        errorText = 'Batas kuota gratis API Google Anda telah tercapai atau terlalu cepat mengirim pesan.';
-      } else if (rawMsg === 'MODEL_NOT_READY') {
-        errorType = 'MODEL';
-        errorText = 'Model Gemini tidak merespon. Silakan coba lagi dalam beberapa saat.';
+        errorText = 'Batas kuota gratis saat ini sudah habis. Silakan coba lagi besok.';
       }
 
       setMessages(prev => [...prev, { 
@@ -117,6 +127,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
           </div>
         </div>
         <div className="flex items-center gap-1">
+          <button onClick={resetChat} title="Reset Percakapan" className="p-2 hover:bg-white/10 rounded-lg text-slate-400 hover:text-white"><ClearIcon size={16}/></button>
           <button onClick={() => setIsMinimized(!isMinimized)} className="p-2 hover:bg-white/10 rounded-lg">{isMinimized ? <MaxIcon size={16}/> : <MinIcon size={16}/>}</button>
           <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-white/10 rounded-lg"><XIcon size={16} /></button>
         </div>
@@ -159,29 +170,13 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
                           <div className="space-y-3">
                              <div className="bg-white/5 p-3 rounded-xl border border-white/10">
                                 <p className="text-[10px] font-bold mb-2">Solusi:</p>
-                                <ul className="text-[9px] list-disc pl-4 space-y-2 text-slate-400">
-                                  <li>Sistem akan mencoba lagi secara otomatis jika limit tercapai sebentar.</li>
-                                  <li>Jika tetap gagal, tunggu <b>1-2 menit</b> lalu kirim pesan lagi.</li>
-                                  <li>Google membatasi akun gratis untuk menjaga kestabilan server.</li>
-                                  <li>Coba gunakan pertanyaan yang lebih singkat.</li>
-                                </ul>
+                                <p className="text-[9px] text-slate-400">Kuota harian Gemini terbatas. Silakan tunggu beberapa saat atau coba lagi besok.</p>
                              </div>
                              <button 
                               onClick={() => handleSendMessage()}
                               className="w-full bg-indigo-600 py-2.5 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all shadow-lg"
                              >
-                              <RetryIcon size={12}/> COBA LAGI SEKARANG
-                             </button>
-                          </div>
-                        )}
-
-                        {m.errorType === 'AUTH' && (
-                          <div className="space-y-3">
-                             <button 
-                              onClick={() => { setIsOpen(false); }}
-                              className="w-full bg-indigo-600 py-2.5 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all"
-                             >
-                              <SettingsIcon size={12}/> KE MENU PENGATURAN
+                              <RetryIcon size={12}/> COBA LAGI
                              </button>
                           </div>
                         )}
@@ -201,7 +196,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
                 disabled={isLoading}
-                placeholder="Tanya ide ajar, soal, atau materi..."
+                placeholder={`Tanya asisten AI pribadi Anda...`}
                 className="w-full bg-slate-100 border-none rounded-2xl py-4 pl-5 pr-14 text-xs font-medium focus:ring-2 focus:ring-indigo-500 disabled:opacity-50"
               />
               <button 
@@ -209,12 +204,13 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
                 disabled={!input.trim() || isLoading}
                 className="absolute right-2 p-2.5 bg-indigo-600 text-white rounded-xl shadow-lg hover:bg-indigo-700 disabled:opacity-50 transition-all active:scale-90"
               >
+                {/* Fix: Gunakan LoaderIcon sesuai aliased import pada baris 20 */}
                 {isLoading ? <LoaderIcon size={16} className="animate-spin"/> : <SendIcon size={16}/>}
               </button>
             </div>
             <p className="text-[8px] text-center text-slate-400 mt-3 font-bold uppercase tracking-widest flex items-center justify-center gap-2">
               <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
-              Engine: Gemini 3 Flash (Free Tier)
+              Sistem Cloud Aktif
             </p>
           </div>
         </>
