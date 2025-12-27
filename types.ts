@@ -5,6 +5,13 @@ export enum Fase {
   C = 'Fase C'
 }
 
+// FIX: Added missing AppView enum for Sidebar component
+export enum AppView {
+  DASHBOARD = 'DASHBOARD',
+  ANALYSIS = 'ANALISIS',
+  GENERATOR = 'GENERATOR'
+}
+
 export type Kelas = '1' | '2' | '3' | '4' | '5' | '6';
 
 export type Role = 'admin' | 'guru';
@@ -28,6 +35,13 @@ export interface Siswa {
   nis: string;
   name: string;
   kelas: Kelas;
+}
+
+// FIX: Added missing UploadedFile interface for FileCard component
+export interface UploadedFile {
+  id: string;
+  name: string;
+  size: number;
 }
 
 export interface AsesmenNilai {
