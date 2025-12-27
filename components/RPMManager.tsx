@@ -43,7 +43,7 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
   const [isLoadingPedagogyAI, setIsLoadingPedagogyAI] = useState(false);
   const [isLoadingAsesmenAI, setIsLoadingAsesmenAI] = useState(false);
   const [isPrintMode, setIsPrintMode] = useState(false);
-  const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
   
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
@@ -57,6 +57,9 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
   });
   
   const [activeYear, setActiveYear] = useState('2025/2026');
+
+  const isClassLocked = user.role === 'guru' && user.teacherType === 'kelas';
+  const availableMapel = user.role === 'admin' ? MATA_PELAJARAN : (user.mapelDiampu || []);
 
   useEffect(() => {
     if (user.role === 'guru') {
@@ -81,133 +84,6 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
   const handleKelasChange = (kls: Kelas) => {
     setFilterKelas(kls);
     updateFaseByKelas(kls);
-  };
-
-  const handlePrint = () => {
-    const content = printRef.current?.innerHTML;
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Cetak RPM - SDN 5 Bilato</title>
-            <script src="https://cdn.tailwindcss.com"></script>
-            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
-            <style>
-              body { font-family: 'Inter', sans-serif; background: white; padding: 20px; }
-              @media print { 
-                .no-print { display: none !important; }
-                body { padding: 0; }
-              }
-              .break-inside-avoid { page-break-inside: avoid; }
-              table { border-collapse: collapse; }
-            </style>
-          </head>
-          <body onload="setTimeout(() => { window.print(); window.close(); }, 500)">
-            ${content}
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-    }
-  };
-
-  const renderAsesmenTable = (data: AsesmenRow[], isPrint = false) => {
-    const categories = {
-      'AWAL': { label: 'Asesmen Awal (Kesiapan)', color: 'bg-rose-600' },
-      'PROSES': { label: 'Asesmen Proses (Formatif)', color: 'bg-indigo-600' },
-      'AKHIR': { label: 'Asesmen Akhir (Sumatif)', color: 'bg-emerald-600' }
-    };
-
-    return (
-      <div className="space-y-12">
-        {data.map((row, idx) => {
-          const config = categories[row.kategori as keyof typeof categories] || { label: row.kategori, color: 'bg-slate-900' };
-          return (
-            <div key={idx} className="break-inside-avoid">
-              <div className={`flex items-center gap-3 mb-4`}>
-                <div className={`px-4 py-1.5 ${config.color} text-white rounded-xl shadow-lg text-[10px] font-black uppercase tracking-widest`}>
-                  {config.label}
-                </div>
-                <div className="flex-1 h-px bg-slate-200"></div>
-                <div className="text-[11px] font-black text-slate-400 uppercase italic">
-                  {row.teknik} | {row.bentuk}
-                </div>
-              </div>
-              
-              {row.instruksi && (
-                <div className={`mb-4 p-4 rounded-2xl border-2 border-dashed ${isPrint ? 'bg-slate-50 border-slate-300 text-black' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>
-                  <p className={`text-[11px] font-medium leading-relaxed italic`}>"Instruksi Guru: {row.instruksi}"</p>
-                </div>
-              )}
-
-              <div className="overflow-x-auto">
-                <table className={`w-full border-collapse border-2 border-black text-[10px] ${isPrint ? '' : 'text-slate-800'}`}>
-                  <thead>
-                    <tr className="bg-slate-100 text-black font-black uppercase text-center h-10">
-                      <th className="border-2 border-black p-2 text-left w-32">Kriteria / Aspek</th>
-                      <th className="border-2 border-black p-2 w-32">Sangat Baik (4)</th>
-                      <th className="border-2 border-black p-2 w-32">Baik (3)</th>
-                      <th className="border-2 border-black p-2 w-32">Cukup (2)</th>
-                      <th className="border-2 border-black p-2 w-32">Perlu Bimb. (1)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {row.rubrikDetail?.map((rub, ridx) => (
-                      <tr key={ridx}>
-                        <td className={`border-2 border-black p-3 font-bold uppercase leading-tight bg-slate-50/50`}>{rub.aspek}</td>
-                        <td className="border-2 border-black p-3 text-justify leading-relaxed">{rub.level4}</td>
-                        <td className="border-2 border-black p-3 text-justify leading-relaxed">{rub.level3}</td>
-                        <td className="border-2 border-black p-3 text-justify leading-relaxed">{rub.level2}</td>
-                        <td className="border-2 border-black p-3 text-justify leading-relaxed">{rub.level1}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-
-  const handleExportWord = () => {
-    const rpm = rpmList.find(r => r.id === isEditing);
-    if (!rpm) return;
-    const header = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>RPM</title><style>table { border-collapse: collapse; width: 100%; margin-bottom: 20px; } th, td { border: 1px solid black; padding: 5px; font-family: 'Arial'; font-size: 10px; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .uppercase { text-transform: uppercase; } ul { margin: 0; padding-left: 20px; } li { margin-bottom: 5px; text-align: justify; } h4 { margin-top: 20px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }</style></head><body>`;
-    const footer = "</body></html>";
-    
-    let contentHtml = `
-      <div style="text-align:center">
-        <h2 style="margin:0">RENCANA PEMBELAJARAN MENDALAM (RPM)</h2>
-        <h3 style="margin:5px 0">${settings.schoolName}</h3>
-      </div>
-      <br/>
-      <table style="width:100%">
-        <tr><td width="30%"><b>Penyusun</b></td><td>${user.name}</td></tr>
-        <tr><td><b>Satuan Pendidikan</b></td><td>${settings.schoolName}</td></tr>
-        <tr><td><b>Mata Pelajaran</b></td><td>${rpm.mataPelajaran}</td></tr>
-        <tr><td><b>Kelas / Semester</b></td><td>${rpm.kelas} / ${rpm.semester}</td></tr>
-        <tr><td><b>Alokasi Waktu</b></td><td>${rpm.alokasiWaktu}</td></tr>
-      </table>
-      <br/>
-      <h4>1. TUJUAN PEMBELAJARAN</h4>
-      <p style="text-align:justify">${rpm.tujuanPembelajaran}</p>
-      <br/>
-      <h4>2. PENGALAMAN BELAJAR (3M)</h4>
-      <p><b>I. MEMAHAMI (AWAL):</b><br/>${rpm.kegiatanAwal.replace(/\n/g, '<br/>')}</p>
-      <p><b>II. MENGAPLIKASI (INTI):</b><br/>${rpm.kegiatanInti.replace(/\n/g, '<br/>')}</p>
-      <p><b>III. MEREFLEKSI (PENUTUP):</b><br/>${rpm.kegiatanPenutup.replace(/\n/g, '<br/>')}</p>
-    `;
-
-    const blob = new Blob(['\ufeff', header + contentHtml + footer], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `RPM_${rpm.materi || 'Materi'}_Kls${rpm.kelas}.doc`;
-    link.click();
-    URL.revokeObjectURL(url);
   };
 
   useEffect(() => {
@@ -270,7 +146,7 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
     let result = content;
     keywords.forEach(word => {
       const regex = new RegExp(`\\b(${word})\\b`, 'gi');
-      result = result.replace(regex, '<strong class="text-black font-black">$1</strong>');
+      result = result.replace(regex, '<span class="text-blue-700 font-black underline decoration-indigo-300">$1</span>');
     });
     return result;
   };
@@ -283,7 +159,7 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
     let lines = processedText.split(/\n+/).map(l => l.trim()).filter(l => l.length > 0);
     
     if (lines.length === 1) {
-      const potentialSteps = processedText.split(/(?<=\.)\s+(?=[A-Z0-9])/g).map(s => s.trim()).filter(s => s.length > 0);
+      const potentialSteps = processedText.split(/(?<=\.)\s+(?=\d+\.|\-|\*|[A-Z])/g).map(s => s.trim()).filter(s => s.length > 0);
       if (potentialSteps.length > 1) {
         lines = potentialSteps;
       }
@@ -301,6 +177,112 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
           );
         })}
       </ul>
+    );
+  };
+
+  const handlePrint = () => {
+    const content = printRef.current?.innerHTML;
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Cetak RPM - SDN 5 Bilato</title>
+            <script src="https://cdn.tailwindcss.com"></script>
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
+            <style>
+              body { font-family: 'Inter', sans-serif; background: white; padding: 20px; font-size: 10pt; }
+              @media print { 
+                .no-print { display: none !important; }
+                body { padding: 0; }
+              }
+              table { border-collapse: collapse; width: 100%; border: 2px solid black; }
+              th, td { border: 1px solid black; padding: 5px; }
+              .break-inside-avoid { page-break-inside: avoid; }
+            </style>
+          </head>
+          <body onload="setTimeout(() => { window.print(); window.close(); }, 500)">
+            ${content}
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    }
+  };
+
+  const handleExportWord = () => {
+    const rpm = rpmList.find(r => r.id === isEditing);
+    if (!rpm) return;
+    const header = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>RPM</title><style>table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid black; padding: 5px; font-family: 'Arial'; font-size: 10pt; vertical-align: top; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .bg-gray { background-color: #f3f4f6; }</style></head><body>`;
+    const footer = "</body></html>";
+    let tableHtml = `
+      <div style="text-align:center">
+        <h2 style="margin:0">RENCANA PEMBELAJARAN MENDALAM (RPM)</h2>
+        <h3 style="margin:5px 0">${settings.schoolName}</h3>
+      </div>
+      <br/>
+      <table>
+        <tr><td style="width:150px; background-color:#f3f4f6">Penyusun</td><td>${user.name}</td></tr>
+        <tr><td style="background-color:#f3f4f6">Mata Pelajaran</td><td>${rpm.mataPelajaran}</td></tr>
+        <tr><td style="background-color:#f3f4f6">Kelas / Fase</td><td>${rpm.kelas} / ${rpm.fase}</td></tr>
+        <tr><td style="background-color:#f3f4f6">Topik</td><td>${rpm.materi}</td></tr>
+        <tr><td style="background-color:#f3f4f6">Alokasi Waktu</td><td>${rpm.alokasiWaktu}</td></tr>
+      </table>
+      <br/>
+      <h3>I. TUJUAN PEMBELAJARAN</h3>
+      <p>${rpm.tujuanPembelajaran}</p>
+      <br/>
+      <h3>II. LANGKAH PEMBELAJARAN (3M)</h3>
+      <h4>Memahami (Awal)</h4>
+      <p>${(rpm.kegiatanAwal || '').replace(/\n/g, '<br/>')}</p>
+      <h4>Mengaplikasi (Inti)</h4>
+      <p>${(rpm.kegiatanInti || '').replace(/\n/g, '<br/>')}</p>
+      <h4>Merefleksi (Penutup)</h4>
+      <p>${(rpm.kegiatanPenutup || '').replace(/\n/g, '<br/>')}</p>
+    `;
+    const blob = new Blob(['\ufeff', header + tableHtml + footer], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `RPM_${rpm.materi.replace(/ /g, '_')}.doc`;
+    link.click();
+  };
+
+  const renderAsesmenTable = (data: AsesmenRow[], isPrint: boolean = false) => {
+    return (
+      <div className="space-y-8">
+        {data.map((row, idx) => (
+          <div key={idx} className="break-inside-avoid">
+            <div className="flex items-center gap-3 mb-3 border-b-2 border-slate-900 pb-2">
+              <div className="bg-slate-900 text-white px-3 py-1 text-[10px] font-black uppercase tracking-widest">{row.kategori}</div>
+              <div className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">{row.teknik} | {row.bentuk}</div>
+            </div>
+            {row.instruksi && <p className="text-[10pt] mb-3 italic text-slate-600">Instruksi Guru: {row.instruksi}</p>}
+            <table className={`w-full border-collapse border-2 border-black ${isPrint ? 'text-[9px]' : 'text-[11px]'}`}>
+              <thead>
+                <tr className="bg-slate-50">
+                  <th className="border-2 border-black p-1 w-1/4 uppercase font-black">ASPEK / KRITERIA</th>
+                  <th className="border-2 border-black p-1 uppercase font-black">SANGAT BAIK (4)</th>
+                  <th className="border-2 border-black p-1 uppercase font-black">BAIK (3)</th>
+                  <th className="border-2 border-black p-1 uppercase font-black">CUKUP (2)</th>
+                  <th className="border-2 border-black p-1 uppercase font-black">PERLU BIMBINGAN (1)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {row.rubrikDetail?.map((detail, dIdx) => (
+                  <tr key={dIdx}>
+                    <td className="border-2 border-black p-1.5 font-bold uppercase bg-slate-50/30">{detail.aspek}</td>
+                    <td className="border-2 border-black p-1.5 leading-tight">{detail.level4}</td>
+                    <td className="border-2 border-black p-1.5 leading-tight">{detail.level3}</td>
+                    <td className="border-2 border-black p-1.5 leading-tight">{detail.level2}</td>
+                    <td className="border-2 border-black p-1.5 leading-tight">{detail.level1}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
+      </div>
     );
   };
 
@@ -348,50 +330,60 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
 
   const handleGenerateAI = async (id: string) => {
     const rpm = rpmList.find(r => r.id === id);
-    if (!rpm || !rpm.tujuanPembelajaran) { setMessage({ text: 'Pilih TP dulu!', type: 'error' }); return; }
+    if (!rpm || !rpm.tujuanPembelajaran) { setMessage({ text: 'Pilih TP dulu!', type: 'warning' }); return; }
     setIsLoadingAI(true);
     try {
       const result = await generateRPMContent(
         rpm.tujuanPembelajaran, 
         rpm.materi, 
         rpm.kelas, 
-        rpm.praktikPedagogis, 
+        rpm.praktikPedagogis || "Aktif", 
         rpm.alokasiWaktu, 
         rpm.jumlahPertemuan || 1,
         user.apiKey
       );
       if (result) { 
         await updateDoc(doc(db, "rpm", id), { ...result }); 
-        setMessage({ text: 'Analisis AI Berhasil!', type: 'success' }); 
+        setMessage({ text: 'Filosofi Deep Learning Berhasil disusun!', type: 'success' }); 
       }
-    } catch (err) { setMessage({ text: 'AI Error', type: 'error' }); }
+    } catch (err: any) { 
+      console.error(err);
+      setMessage({ text: 'AI Gagal: ' + (err.message || 'Cek kuota API'), type: 'error' }); 
+    }
     finally { setIsLoadingAI(false); }
   };
 
   const handleGenerateAsesmenAI = async (id: string) => {
     const rpm = rpmList.find(r => r.id === id);
-    if (!rpm || !rpm.atpId) { setMessage({ text: 'Hubungkan ATP dulu!', type: 'error' }); return; }
-    const atp = atpData.find(a => a.id === rpm.atpId);
-    if (!atp) return;
+    if (!rpm || !rpm.tujuanPembelajaran) { setMessage({ text: 'Isi TP dulu!', type: 'warning' }); return; }
     setIsLoadingAsesmenAI(true);
     try {
       const result = await generateAssessmentDetails(
         rpm.tujuanPembelajaran, 
         rpm.materi, 
         rpm.kelas, 
-        atp.asesmenAwal, 
-        atp.asesmenProses, 
-        atp.asesmenAkhir,
         user.apiKey
       );
       if (result) { 
         await updateDoc(doc(db, "rpm", id), { asesmenTeknik: result }); 
         setMessage({ text: '3 Rubrik Asesmen Selesai disusun!', type: 'success' }); 
       }
-    } catch (err) { setMessage({ text: 'Rubrik AI Error', type: 'error' }); } finally { setIsLoadingAsesmenAI(false); }
+    } catch (err: any) { 
+      console.error(err);
+      setMessage({ text: 'Gagal menyusun Rubrik: ' + (err.message || 'Error AI'), type: 'error' }); 
+    } finally { setIsLoadingAsesmenAI(false); }
   };
 
-  const parseAsesmen = (json: string): AsesmenRow[] | null => { try { const parsed = JSON.parse(json); return Array.isArray(parsed) ? parsed : null; } catch { return null; } };
+  const parseAsesmen = (json: string): AsesmenRow[] | null => { 
+    if (!json || json.trim() === '') return null;
+    try { 
+      const parsed = JSON.parse(json); 
+      return Array.isArray(parsed) ? parsed : null; 
+    } catch (e) { 
+      console.error("JSON Parse Error on Asesmen:", e);
+      return null; 
+    } 
+  };
 
   const executeDelete = async () => {
     if (!deleteConfirmId) return;
@@ -579,13 +571,9 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
     );
   }
 
-  const currentRpm = rpmList.find(r => r.id === isEditing);
-  const availableMapel = user.role === 'admin' ? MATA_PELAJARAN : (user.mapelDiampu || []);
-  const isClassLocked = user.role === 'guru' && user.teacherType === 'kelas';
-
   return (
     <div className="space-y-6 pb-20 animate-in fade-in duration-500 relative theme-dpl">
-      {message && (<div className={`fixed top-24 right-8 z-[100] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border ${message.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800'}`}><CheckCircle2 size={20}/><span className="text-sm font-black uppercase tracking-tight">{message.text}</span></div>)}
+      {message && (<div className={`fixed top-24 right-8 z-[100] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border ${message.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : message.type === 'error' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}><CheckCircle2 size={20}/><span className="text-sm font-black uppercase tracking-tight">{message.text}</span></div>)}
       {deleteConfirmId && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[250] flex items-center justify-center p-4">
           <div className="bg-white rounded-[32px] shadow-2xl w-full max-sm overflow-hidden animate-in zoom-in-95">
@@ -612,7 +600,7 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
                   <div className="text-center">
                     <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-2">Analisis AI Berjalan</h3>
                     <p className="text-slate-500 font-medium max-w-xs leading-relaxed italic">
-                      "Menyusun alur mendalam berbasis 3M untuk {rpmList.find(r => r.id === isEditing)?.jumlahPertemuan} sesi..."
+                      "Menyusun alur mendalam berbasis 3M for ${rpmList.find(r => r.id === isEditing)?.jumlahPertemuan} sesi..."
                     </p>
                   </div>
                 </div>
@@ -676,18 +664,20 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
                     <div className="w-1.5 h-6 bg-slate-800 rounded-full"></div>
                     <h4 className="font-black text-slate-800 uppercase text-xs tracking-widest">3. Strategi Asesmen (Rubrik Awal, Proses & Akhir)</h4>
                   </div>
-                  <button onClick={() => handleGenerateAsesmenAI(isEditing!)} disabled={isLoadingAsesmenAI} className="flex items-center gap-2 bg-indigo-600 text-white px-8 py-3 rounded-2xl text-xs font-black shadow-xl">
+                  <button onClick={() => handleGenerateAsesmenAI(isEditing!)} disabled={isLoadingAsesmenAI} className="flex items-center gap-2 bg-indigo-600 text-white px-8 py-3 rounded-2xl text-xs font-black shadow-xl hover:bg-indigo-700">
                     {isLoadingAsesmenAI ? <Loader2 size={16} className="animate-spin" /> : <ClipboardList size={16}/>} 
                     SUSUN 3 RUBRIK (AI)
                   </button>
                 </div>
-                <div className="bg-white p-8 rounded-[40px] border border-slate-200">
+                <div className="bg-white p-8 rounded-[40px] border border-slate-200 min-h-[200px]">
                   {parseAsesmen(rpmList.find(r => r.id === isEditing)?.asesmenTeknik || "") ? (
                     renderAsesmenTable(parseAsesmen(rpmList.find(r => r.id === isEditing)?.asesmenTeknik || "")!)
                   ) : (
                     <div className="flex flex-col items-center justify-center py-20 text-slate-400 gap-4">
-                      <FileText size={48} className="opacity-20"/>
-                      <p className="text-xs font-black uppercase tracking-widest text-center">Klik Susun 3 Rubrik untuk menghasilkan tabel penilaian lengkap (Awal, Formatif, Sumatif)</p>
+                      {isLoadingAsesmenAI ? <Loader2 size={48} className="animate-spin text-indigo-600" /> : <FileText size={48} className="opacity-20"/>}
+                      <p className="text-xs font-black uppercase tracking-widest text-center">
+                        {isLoadingAsesmenAI ? "AI sedang menyusun rubrik..." : "Klik Susun 3 Rubrik untuk menghasilkan tabel penilaian lengkap"}
+                      </p>
                     </div>
                   )}
                 </div>

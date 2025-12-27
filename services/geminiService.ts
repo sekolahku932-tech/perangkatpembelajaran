@@ -2,52 +2,22 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { UploadedFile } from "../types";
 
-const getSystemApiKey = () => {
-  return process.env.API_KEY || null;
+// Fungsi pembantu untuk membersihkan string dari blok kode markdown
+const cleanJsonString = (str: string): string => {
+  return str.replace(/```json/g, '').replace(/```/g, '').trim();
+};
+
+const getApiKey = (customKey?: string) => {
+  const key = customKey || process.env.API_KEY;
+  if (!key) throw new Error('API_KEY_MISSING');
+  return key;
 };
 
 const DEFAULT_MODEL = 'gemini-3-flash-preview';
 const COMPLEX_MODEL = 'gemini-3-pro-preview';
 
-/**
- * Membuat instance AI baru menggunakan kunci yang tersedia.
- * Prioritas: Kunci User > Kunci Sistem.
- */
-const createAIInstance = (customKey?: string) => {
-  const apiKey = customKey || getSystemApiKey();
-  if (!apiKey) {
-    throw new Error('API_KEY_MISSING');
-  }
-  return new GoogleGenAI({ apiKey });
-};
-
-const withRetry = async <T>(fn: (ai: GoogleGenAI) => Promise<T>, customKey?: string, maxRetries = 3): Promise<T> => {
-  let lastError: any;
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const ai = createAIInstance(customKey);
-      return await fn(ai);
-    } catch (error: any) {
-      lastError = error;
-      const errorStr = JSON.stringify(error).toLowerCase();
-      const isQuotaError = errorStr.includes('429') || errorStr.includes('quota') || errorStr.includes('resource_exhausted');
-      if (isQuotaError && i < maxRetries - 1) {
-        const delay = Math.pow(2, i + 2) * 1000;
-        await new Promise(resolve => setTimeout(resolve, delay));
-        continue;
-      }
-      if (errorStr.includes('400') || errorStr.includes('invalid') || errorStr.includes('key not found')) {
-        throw new Error('INVALID_API_KEY');
-      }
-      if (isQuotaError) throw new Error('QUOTA_EXCEEDED');
-      throw error;
-    }
-  }
-  throw lastError;
-};
-
 export const startAIChat = async (systemInstruction: string, apiKey?: string) => {
-  const ai = createAIInstance(apiKey);
+  const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
   return ai.chats.create({
     model: DEFAULT_MODEL,
     config: { systemInstruction, temperature: 0.7 },
@@ -55,200 +25,223 @@ export const startAIChat = async (systemInstruction: string, apiKey?: string) =>
 };
 
 export const analyzeDocuments = async (files: UploadedFile[], prompt: string, apiKey?: string) => {
-  return withRetry(async (ai) => {
-    const fileParts = files.map(file => ({
-      inlineData: {
-        data: file.base64.split(',')[1],
-        mimeType: file.type
-      }
-    }));
-    const response = await ai.models.generateContent({
-      model: DEFAULT_MODEL,
-      contents: { parts: [...fileParts, { text: prompt }] },
-      config: { systemInstruction: "Anda adalah pakar kurikulum SD. Berikan jawaban yang sangat ringkas dan padat." }
-    });
-    return response.text || "AI tidak memberikan respon teks.";
-  }, apiKey);
+  const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
+  const fileParts = files.map(file => ({
+    inlineData: {
+      data: file.base64.split(',')[1],
+      mimeType: file.type
+    }
+  }));
+  const response = await ai.models.generateContent({
+    model: DEFAULT_MODEL,
+    contents: { parts: [...fileParts, { text: prompt }] },
+    config: { systemInstruction: "Pakar kurikulum SD SDN 5 Bilato. Jawaban ringkas." }
+  });
+  return response.text || "AI tidak memberikan respon.";
 };
 
 export const analyzeCPToTP = async (cpContent: string, elemen: string, fase: string, kelas: string, apiKey?: string) => {
-  return withRetry(async (ai) => {
-    const response = await ai.models.generateContent({
-      model: DEFAULT_MODEL,
-      contents: `Pisahkan CP ini menjadi TP linear SD Kelas ${kelas}: "${cpContent}".`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              materi: { type: Type.STRING },
-              subMateri: { type: Type.STRING },
-              tp: { type: Type.STRING }
-            },
-            required: ['materi', 'subMateri', 'tp']
+  const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
+  const response = await ai.models.generateContent({
+    model: DEFAULT_MODEL,
+    contents: `Analisis CP ini menjadi TP linear untuk SD Kelas ${kelas}: "${cpContent}".`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            materi: { type: Type.STRING },
+            subMateri: { type: Type.STRING },
+            tp: { type: Type.STRING }
           },
+          required: ['materi', 'subMateri', 'tp']
         }
       }
-    });
-    return JSON.parse(response.text || '[]');
-  }, apiKey);
+    }
+  });
+  return JSON.parse(cleanJsonString(response.text || '[]'));
 };
 
 export const completeATPDetails = async (tp: string, materi: string, kelas: string, apiKey?: string) => {
-  return withRetry(async (ai) => {
-    const response = await ai.models.generateContent({
-      model: COMPLEX_MODEL,
-      contents: `Lengkapi ATP secara ringkas. TP: ${tp}.`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            alurTujuan: { type: Type.STRING },
-            alokasiWaktu: { type: Type.STRING },
-            dimensiOfProfil: { type: Type.STRING },
-            asesmenAwal: { type: Type.STRING },
-            asesmenProses: { type: Type.STRING },
-            asesmenAkhir: { type: Type.STRING },
-            sumberBelajar: { type: Type.STRING }
-          }
+  const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
+  const response = await ai.models.generateContent({
+    model: COMPLEX_MODEL,
+    contents: `Lengkapi detail ATP SD Kelas ${kelas}. TP: "${tp}" | Materi: "${materi}"`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          alurTujuan: { type: Type.STRING },
+          alokasiWaktu: { type: Type.STRING },
+          dimensiOfProfil: { type: Type.STRING },
+          asesmenAwal: { type: Type.STRING },
+          asesmenProses: { type: Type.STRING },
+          asesmenAkhir: { type: Type.STRING },
+          sumberBelajar: { type: Type.STRING }
         }
       }
-    });
-    return JSON.parse(response.text || '{}');
-  }, apiKey);
+    }
+  });
+  return JSON.parse(cleanJsonString(response.text || '{}'));
 };
 
 export const recommendPedagogy = async (tp: string, alurAtp: string, materi: string, kelas: string, apiKey?: string) => {
-  return withRetry(async (ai) => {
-    const response = await ai.models.generateContent({
-      model: DEFAULT_MODEL,
-      contents: `Rekomendasi model pembelajaran singkat untuk TP: "${tp}"`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            modelName: { type: Type.STRING },
-            reason: { type: Type.STRING }
-          }
+  const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
+  const response = await ai.models.generateContent({
+    model: DEFAULT_MODEL,
+    contents: `Berikan 1 nama model pembelajaran paling relevan untuk TP SD: "${tp}"`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          modelName: { type: Type.STRING },
+          reason: { type: Type.STRING }
         }
       }
-    });
-    return JSON.parse(response.text || '{}');
-  }, apiKey);
+    }
+  });
+  return JSON.parse(cleanJsonString(response.text || '{}'));
 };
 
 export const generateRPMContent = async (tp: string, materi: string, kelas: string, praktikPedagogis: string, alokasiWaktu: string, jumlahPertemuan: number = 1, apiKey?: string) => {
-  return withRetry(async (ai) => {
-    const prompt = `Buat konten RPM SD Kelas ${kelas} (Deep Learning). 
-    TP: "${tp}" | Materi: "${materi}" | Model: "${praktikPedagogis}" | Pertemuan: ${jumlahPertemuan}.
+  const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
+  const prompt = `Susun langkah pembelajaran mendalam 3M (Memahami, Mengaplikasi, Merefleksi) untuk SD Kelas ${kelas}.
+  TP: "${tp}" | Materi: "${materi}" | Model: "${praktikPedagogis}" | Sesi: ${jumlahPertemuan} pertemuan.
+  
+  INSTRUKSI KHUSUS FILOSOFI DEEP LEARNING:
+  Dalam narasi kegiatan, Anda WAJIB mengintegrasikan elemen berikut:
+  1. BERKESADARAN (Mindful): Siswa hadir utuh secara mental dan emosional.
+  2. BERMAKNA (Meaningful): Menghubungkan pelajaran dengan kehidupan nyata siswa.
+  3. MENGGEMBIRAKAN (Joyful): Menciptakan suasana belajar yang positif dan menyenangkan.
 
-    Format JSON:
-    {
-      "praktikPedagogis": "Nama Model",
-      "kemitraan": "Singkat",
-      "lingkunganBelajar": "Singkat",
-      "pemanfaatanDigital": "Singkat",
-      "kegiatanAwal": "Pertemuan 1:\\n1. ...",
-      "kegiatanInti": "Pertemuan 1:\\n1. ...",
-      "kegiatanPenutup": "Pertemuan 1:\\n1. ..."
-    }`;
-    const response = await ai.models.generateContent({
-      model: COMPLEX_MODEL,
-      contents: prompt,
-      config: { responseMimeType: "application/json", thinkingConfig: { thinkingBudget: 0 } }
-    });
-    return JSON.parse(response.text || '{}');
-  }, apiKey);
+  WAJIB menyertakan kata-kata 'Berkesadaran', 'Bermakna', dan 'Menggembirakan' di dalam langkah-langkah kegiatan secara natural.
+  Jika pertemuan > 1, tuliskan "Pertemuan 1:", "Pertemuan 2:", dst di awal baris pada setiap kegiatan.`;
+  
+  const response = await ai.models.generateContent({
+    model: COMPLEX_MODEL,
+    contents: prompt,
+    config: { 
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          kemitraan: { type: Type.STRING },
+          lingkunganBelajar: { type: Type.STRING },
+          pemanfaatanDigital: { type: Type.STRING },
+          kegiatanAwal: { type: Type.STRING },
+          kegiatanInti: { type: Type.STRING },
+          kegiatanPenutup: { type: Type.STRING }
+        },
+        required: ["kegiatanAwal", "kegiatanInti", "kegiatanPenutup"]
+      }
+    }
+  });
+  return JSON.parse(cleanJsonString(response.text || '{}'));
 };
 
-export const generateAssessmentDetails = async (tp: string, materi: string, kelas: string, narasiAwal: string, narasiProses: string, narasiAkhir: string, apiKey?: string) => {
-  return withRetry(async (ai) => {
-    const response = await ai.models.generateContent({
-      model: COMPLEX_MODEL,
-      contents: `Buat 3 rubrik asesmen singkat untuk TP: "${tp}".`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              kategori: { type: Type.STRING },
-              teknik: { type: Type.STRING },
-              bentuk: { type: Type.STRING },
-              instruksi: { type: Type.STRING },
-              rubrikDetail: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    aspek: { type: Type.STRING },
-                    level4: { type: Type.STRING },
-                    level3: { type: Type.STRING },
-                    level2: { type: Type.STRING },
-                    level1: { type: Type.STRING }
-                  }
-                }
+export const generateAssessmentDetails = async (tp: string, materi: string, kelas: string, apiKey?: string) => {
+  const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
+  const prompt = `Susun 3 rubrik asesmen lengkap (AWAL, PROSES, AKHIR) untuk SD Kelas ${kelas}. 
+  TP: "${tp}"
+  Materi: "${materi}"
+  
+  Setiap rubrik wajib memiliki kategori, teknik, bentuk, instruksi guru, dan rubrikDetail (aspek dan level 1-4). 
+  Asesmen awal fokus pada Kesiapan, Proses fokus pada Formatif, Akhir fokus pada Sumatif.`;
+
+  const response = await ai.models.generateContent({
+    model: COMPLEX_MODEL,
+    contents: prompt,
+    config: { 
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            kategori: { type: Type.STRING },
+            teknik: { type: Type.STRING },
+            bentuk: { type: Type.STRING },
+            instruksi: { type: Type.STRING },
+            rubrikDetail: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  aspek: { type: Type.STRING },
+                  level4: { type: Type.STRING },
+                  level3: { type: Type.STRING },
+                  level2: { type: Type.STRING },
+                  level1: { type: Type.STRING }
+                },
+                required: ["aspek", "level4", "level3", "level2", "level1"]
               }
             }
-          }
-        },
-        thinkingConfig: { thinkingBudget: 0 }
+          },
+          required: ["kategori", "teknik", "bentuk", "rubrikDetail"]
+        }
       }
-    });
-    return response.text || "[]";
-  }, apiKey);
+    }
+  });
+  return cleanJsonString(response.text || '[]');
 };
 
 export const generateLKPDContent = async (rpm: any, apiKey?: string) => {
-  return withRetry(async (ai) => {
-    const response = await ai.models.generateContent({
-      model: COMPLEX_MODEL,
-      contents: `Susun LKPD ringkas. Materi: ${rpm.materi}.`,
-      config: { responseMimeType: "application/json", thinkingConfig: { thinkingBudget: 0 } }
-    });
-    return JSON.parse(response.text || '{}');
-  }, apiKey);
+  const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
+  const response = await ai.models.generateContent({
+    model: COMPLEX_MODEL,
+    contents: `Buat konten LKPD SD. Materi: ${rpm.materi}. Fokus: ${rpm.tujuanPembelajaran}.`,
+    config: { 
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          petunjuk: { type: Type.STRING },
+          materiRingkas: { type: Type.STRING },
+          langkahKerja: { type: Type.STRING },
+          tugasMandiri: { type: Type.STRING },
+          refleksi: { type: Type.STRING }
+        }
+      }
+    }
+  });
+  return JSON.parse(cleanJsonString(response.text || '{}'));
 };
 
 export const generateIndikatorSoal = async (item: any, apiKey?: string) => {
-  return withRetry(async (ai) => {
-    const isNonTes = item.jenis === 'Non Tes';
-    const prompt = isNonTes 
-      ? `Buat 1 kalimat indikator pengamatan perilaku/sikap untuk instrumen NON-TES jenjang SD. TP: "${item.tujuanPembelajaran}".`
-      : `Buat 1 kalimat indikator soal AKM jenjang SD. TP: "${item.tujuanPembelajaran}".`;
+  const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
+  const isNonTes = item.jenis === 'Non Tes';
+  const prompt = isNonTes 
+    ? `Buat 1 indikator observasi sikap SD. TP: "${item.tujuanPembelajaran}".`
+    : `Buat 1 indikator soal AKM SD. TP: "${item.tujuanPembelajaran}".`;
 
-    const response = await ai.models.generateContent({
-      model: DEFAULT_MODEL,
-      contents: prompt,
-      config: { thinkingConfig: { thinkingBudget: 0 } }
-    });
-    return response.text?.trim() || "";
-  }, apiKey);
+  const response = await ai.models.generateContent({
+    model: DEFAULT_MODEL,
+    contents: prompt
+  });
+  return response.text?.trim() || "";
 };
 
 export const generateButirSoal = async (item: any, apiKey?: string) => {
-  return withRetry(async (ai) => {
-    const response = await ai.models.generateContent({
-      model: COMPLEX_MODEL,
-      contents: `Buat 1 butir soal/instrumen untuk TP: "${item.tujuanPembelajaran}"`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            stimulus: { type: Type.STRING },
-            soal: { type: Type.STRING },
-            kunci: { type: Type.STRING }
-          },
-          required: ['stimulus', 'soal', 'kunci']
-        }
+  const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
+  const response = await ai.models.generateContent({
+    model: COMPLEX_MODEL,
+    contents: `Buat 1 butir soal Asesmen SD. TP: "${item.tujuanPembelajaran}". Indikator: ${item.indikatorSoal}`,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          stimulus: { type: Type.STRING },
+          soal: { type: Type.STRING },
+          kunci: { type: Type.STRING }
+        },
+        required: ['stimulus', 'soal', 'kunci']
       }
-    });
-    return JSON.parse(response.text || '{"stimulus": "", "soal": "", "kunci": ""}');
-  }, apiKey);
+    }
+  });
+  return JSON.parse(cleanJsonString(response.text || '{}'));
 };
