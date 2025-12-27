@@ -101,5 +101,10 @@ export const query = (ref: any, ...constraints: any[]) => {
 export const where = (field: string, op: any, value: any) => ({ type: 'where', field, op, value });
 export const getDocs = (ref: any) => ref.get();
 
-// FIX: Update setDoc to support optional 3rd argument (options) for v9 modular style compatibility shims
-export const setDoc = (ref: any, data: any, options?: any) => ref.set(data, options);
+// FIX: SetDoc yang lebih stabil
+export const setDoc = (ref: any, data: any, options?: any) => {
+  if (options) {
+    return ref.set(data, options);
+  }
+  return ref.set(data);
+};

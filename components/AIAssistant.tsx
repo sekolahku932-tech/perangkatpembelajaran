@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, X, Send, User, Bot, Loader2, Maximize2, Minimize2, AlertCircle, Key, Settings, AlertTriangle } from 'lucide-react';
+import { Sparkles, X, Send, User, Bot, Loader2, Maximize2, Minimize2, AlertCircle, Key, Settings, AlertTriangle, Terminal } from 'lucide-react';
 import { startAIChat } from '../services/geminiService';
 import { User as UserType } from '../types';
 
@@ -9,6 +9,7 @@ interface Message {
   text: string;
   isError?: boolean;
   errorType?: 'AUTH' | 'MODEL' | 'QUOTA' | 'GENERIC';
+  rawError?: string;
 }
 
 interface AIAssistantProps {
@@ -42,7 +43,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
 
     try {
       if (!chatInstance.current) {
-        chatInstance.current = await startAIChat(`Anda adalah asisten AI guru SDN 5 Bilato. Nama guru: ${user.name}.`);
+        chatInstance.current = await startAIChat(`Anda adalah asisten AI guru SDN 5 Bilato. Nama guru: ${user.name}. Gunakan bahasa Indonesia yang santun dan profesional.`);
       }
 
       const result = await chatInstance.current.sendMessageStream({ message: userMessage });
@@ -61,19 +62,26 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
     } catch (e: any) {
       let errorText = 'Maaf, terjadi kesalahan teknis pada sistem AI.';
       let errorType: Message['errorType'] = 'GENERIC';
+      const rawMsg = e.message || 'Unknown Error';
       
-      if (e.message === 'API_KEY_MISSING') {
+      if (rawMsg === 'API_KEY_MISSING') {
         errorType = 'AUTH';
-        errorText = 'Kunci API Gemini (API_KEY) tidak terdeteksi oleh sistem hosting (Netlify/Vercel).';
-      } else if (e.message === 'MODEL_NOT_READY') {
+        errorText = 'Kunci API Gemini tidak terdeteksi. Silakan masukkan kunci di menu Pengaturan.';
+      } else if (rawMsg === 'MODEL_NOT_READY') {
         errorType = 'MODEL';
-        errorText = 'Model Gemini saat ini belum siap atau tidak tersedia untuk kunci API Anda.';
-      } else if (e.message === 'QUOTA_EXCEEDED') {
+        errorText = 'Model Gemini tidak merespon. Kunci API Anda mungkin belum mendukung model ini.';
+      } else if (rawMsg === 'QUOTA_EXCEEDED') {
         errorType = 'QUOTA';
-        errorText = 'Batas penggunaan API gratis Anda telah habis hari ini.';
+        errorText = 'Batas penggunaan harian API gratis Anda telah habis.';
       }
 
-      setMessages(prev => [...prev, { role: 'model', text: errorText, isError: true, errorType }]);
+      setMessages(prev => [...prev, { 
+        role: 'model', 
+        text: errorText, 
+        isError: true, 
+        errorType,
+        rawError: rawMsg 
+      }]);
       chatInstance.current = null;
     } finally {
       setIsLoading(false);
@@ -120,30 +128,39 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
                     <div className={`p-4 rounded-2xl text-[11px] leading-relaxed shadow-sm ${m.role === 'user' ? 'bg-indigo-600 text-white rounded-tr-none' : m.isError ? 'bg-red-50 text-red-700 border border-red-100 rounded-tl-none' : 'bg-white text-slate-800 rounded-tl-none border border-slate-100'}`}>
                       {m.text || (isLoading && i === messages.length - 1 ? <Loader2 size={14} className="animate-spin opacity-50"/> : '')}
                     </div>
-                    {m.isError && m.errorType === 'AUTH' && (
+                    
+                    {m.isError && (
                       <div className="bg-slate-900 text-white p-5 rounded-2xl space-y-4 shadow-xl border border-white/10 animate-in zoom-in-95">
                         <div className="flex items-center gap-2 text-rose-400">
                            <AlertTriangle size={16}/>
-                           <span className="text-[10px] font-black uppercase tracking-widest">Solusi Perbaikan</span>
+                           <span className="text-[10px] font-black uppercase tracking-widest">Detail Masalah</span>
                         </div>
-                        <p className="text-[10px] leading-relaxed text-slate-300">Konfigurasi server hosting Anda bermasalah. Gunakan solusi input manual:</p>
-                        <div className="space-y-3">
-                           <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-                              <p className="text-[10px] font-bold mb-1">Cara Hubungkan Kunci API:</p>
-                              <ol className="text-[9px] list-decimal pl-4 space-y-1 text-slate-400">
-                                <li>Dapatkan Kunci di <b>AI Studio</b>.</li>
-                                <li>Masuk ke menu <b>PENGATURAN</b> di aplikasi ini.</li>
-                                <li>Tempel Kunci di bagian <b>KONFIGURASI AI</b>.</li>
-                                <li>Klik <b>SIMPAN</b> & AI akan langsung aktif!</li>
-                              </ol>
-                           </div>
-                           <button 
-                            onClick={() => { setIsOpen(false); /* Trigger navigation in parent if possible or just guide user */ }}
-                            className="w-full bg-indigo-600 py-2 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all"
-                           >
-                            <Settings size={12}/> KE MENU PENGATURAN
-                           </button>
+                        
+                        <div className="bg-black/40 p-3 rounded-xl border border-white/5 font-mono text-[9px] text-slate-400 break-all">
+                          <div className="flex items-center gap-2 mb-1 text-emerald-400 font-bold">
+                            <Terminal size={10}/> RAW ERROR:
+                          </div>
+                          {m.rawError}
                         </div>
+
+                        {m.errorType === 'AUTH' && (
+                          <div className="space-y-3">
+                             <div className="bg-white/5 p-3 rounded-xl border border-white/10">
+                                <p className="text-[10px] font-bold mb-1">Cara Hubungkan:</p>
+                                <ol className="text-[9px] list-decimal pl-4 space-y-1 text-slate-400">
+                                  <li>Ke menu <b>PENGATURAN</b> aplikasi.</li>
+                                  <li>Tempel Kunci API di bagian <b>KONFIGURASI AI</b>.</li>
+                                  <li>Klik <b>SIMPAN</b>.</li>
+                                </ol>
+                             </div>
+                             <button 
+                              onClick={() => { setIsOpen(false); }}
+                              className="w-full bg-indigo-600 py-2 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all"
+                             >
+                              <Settings size={12}/> KE MENU PENGATURAN
+                             </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -171,7 +188,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
                 {isLoading ? <Loader2 size={16} className="animate-spin"/> : <Send size={16}/>}
               </button>
             </div>
-            <p className="text-[8px] text-center text-slate-400 mt-3 font-bold uppercase tracking-widest">Model: Gemini Flash Asst.</p>
+            <p className="text-[8px] text-center text-slate-400 mt-3 font-bold uppercase tracking-widest">Model: Gemini 1.5 Flash</p>
           </div>
         </>
       )}

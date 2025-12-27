@@ -6,56 +6,59 @@ import { GoogleGenAI, Type } from "@google/genai";
  */
 let dynamicApiKey: string | null = null;
 
-/**
- * Fungsi untuk mengupdate kunci secara dinamis dari App.tsx (Firebase)
- */
 export const setGeminiKey = (key: string) => {
   if (key && key.trim() !== '') {
     dynamicApiKey = key.trim();
-    console.log("AI Service: Kunci Cloud diaktifkan.");
+    console.log("AI Service: Kunci Cloud/Local telah disetel.");
   }
 };
 
 const getApiKey = () => {
-  // 1. Prioritas Utama: Kunci dari Database (Firebase)
+  // 1. Prioritas: Kunci dari Database (Firebase/Local)
   if (dynamicApiKey) return dynamicApiKey;
 
-  // 2. Prioritas Kedua: LocalStorage (Backup manual)
+  // 2. Backup: LocalStorage
   const storedKey = localStorage.getItem('GEMINI_API_KEY');
   if (storedKey && storedKey.trim() !== '') return storedKey;
 
-  // 3. Prioritas Terakhir: Environment Variable
+  // 3. Terakhir: Environment Variable
   const envKey = process.env.API_KEY || (window as any).process?.env?.API_KEY;
   if (envKey && envKey !== 'undefined' && envKey !== '') return envKey;
 
   return null;
 };
 
+/**
+ * Menggunakan model Gemini 1.5 Flash karena paling stabil dan mendukung kuota gratis yang besar.
+ */
+const DEFAULT_MODEL = 'gemini-1.5-flash';
+
 const getAI = () => {
   const apiKey = getApiKey();
   if (!apiKey) {
+    console.error("AI Error: Kunci API tidak ditemukan di sistem.");
     throw new Error('API_KEY_MISSING');
   }
+  // Inisialisasi sesuai Guideline
   return new GoogleGenAI({ apiKey });
 };
 
 const handleGeminiError = (error: any) => {
-  console.error("Gemini technical detail:", error);
+  console.error("DEBUG Gemini Detail Error:", error);
   const msg = error.message || '';
   
   if (msg.includes('API key not found') || msg.includes('invalid') || msg === 'API_KEY_MISSING') {
     throw new Error('API_KEY_MISSING');
   }
-  if (msg.includes('Requested entity was not found')) {
+  if (msg.includes('Requested entity was not found') || msg.includes('model not found')) {
     throw new Error('MODEL_NOT_READY');
   }
-  if (msg.includes('429') || msg.includes('quota')) {
+  if (msg.includes('429') || msg.includes('quota') || msg.includes('limit')) {
     throw new Error('QUOTA_EXCEEDED');
   }
+  // Lempar error asli untuk ditangkap UI Debugging
   throw error;
 };
-
-const DEFAULT_MODEL = 'gemini-flash-latest';
 
 export const startAIChat = async (systemInstruction: string) => {
   try {
@@ -183,7 +186,7 @@ export const generateAssessmentDetails = async (tp: string, materi: string, kela
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-3-pro-preview',
+      model: 'gemini-1.5-pro', // Gunakan pro untuk rubrik berkualitas tinggi jika memungkinkan
       contents: `Buat rubrik asesmen lengkap 3 BAGIAN (AWAL, PROSES, AKHIR) untuk TP: "${tp}" SD Kelas ${kelas}.`,
       config: {
         responseMimeType: "application/json",
@@ -216,7 +219,18 @@ export const generateAssessmentDetails = async (tp: string, materi: string, kela
     });
     return response.text?.trim() || "[]";
   } catch (error: any) {
-    return handleGeminiError(error);
+    // Jika gemini-1.5-pro gagal, fallback ke default flash
+    try {
+      const aiFallback = getAI();
+      const responseFallback = await aiFallback.models.generateContent({
+        model: DEFAULT_MODEL,
+        contents: `Buat rubrik asesmen lengkap untuk TP: "${tp}" SD Kelas ${kelas}.`,
+        config: { responseMimeType: "application/json" }
+      });
+      return responseFallback.text || "[]";
+    } catch (e) {
+      return handleGeminiError(error);
+    }
   }
 };
 
