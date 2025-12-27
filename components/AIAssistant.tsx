@@ -1,10 +1,5 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, X, Send, User, Bot, Loader2, Maximize2, Minimize2, AlertCircle, Key, Settings, AlertTriangle, Terminal, ExternalLink } from 'lucide-center';
-import { startAIChat } from '../services/geminiService';
-import { User as UserType } from '../types';
-
-// Perbaikan import ikon jika lucide-center tidak tersedia, gunakan lucide-react seperti file lain
 import { 
   Sparkles as SparklesIcon, X as XIcon, Send as SendIcon, 
   User as UserIcon, Bot as BotIcon, Loader2 as LoaderIcon, 
@@ -12,6 +7,8 @@ import {
   Settings as SettingsIcon, AlertTriangle as WarningIcon, Terminal as TermIcon, 
   ExternalLink as LinkIcon 
 } from 'lucide-react';
+import { startAIChat } from '../services/geminiService';
+import { User as UserType } from '../types';
 
 interface Message {
   role: 'user' | 'model';
@@ -209,7 +206,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
                 {isLoading ? <LoaderIcon size={16} className="animate-spin"/> : <SendIcon size={16}/>}
               </button>
             </div>
-            <p className="text-[8px] text-center text-slate-400 mt-3 font-bold uppercase tracking-widest">Model Optimal: Gemini 3 Flash</p>
+            <p className="text-[8px] text-center text-slate-400 mt-3 font-bold uppercase tracking-widest">Model: Gemini Flash Lite</p>
           </div>
         </>
       )}

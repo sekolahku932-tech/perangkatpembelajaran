@@ -6,7 +6,7 @@ import {
   PenTool, BarChart3, Wand2, ChevronRight, FileDown, Sparkles, Lock, Eye, EyeOff, AlertCircle, X
 } from 'lucide-react';
 import { db, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from '../services/firebase';
-import { GoogleGenAI } from "@google/genai";
+import { generateIndikatorSoal, generateButirSoal } from '../services/geminiService';
 
 interface AsesmenManagerProps {
   type: 'formatif' | 'sumatif';
@@ -25,7 +25,6 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
   const [hariTanggal, setHariTanggal] = useState('');
   const [waktuPengerjaan, setWaktuPengerjaan] = useState('90 Menit');
   
-  const [nilais, setNilais] = useState<AsesmenNilai[]>([]);
   const [tps, setTps] = useState<ATPItem[]>([]);
   const [kisikisi, setKisikisi] = useState<KisiKisiItem[]>([]);
   
@@ -146,29 +145,26 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
     if (!item.tujuanPembelajaran) return;
     setAiLoadingMap(prev => ({ ...prev, [`ind-${item.id}`]: true }));
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
-        contents: `Buatkan 1 kalimat indikator soal AKM SD. Mapel: ${item.mataPelajaran}, Kelas: ${item.kelas}, Kompetensi: ${item.kompetensi}, TP: ${item.tujuanPembelajaran}. Berikan langsung kalimatnya saja.`,
-      });
-      await updateKisiKisi(item.id, 'indikatorSoal', response.text?.trim() || "");
-    } catch (e) { console.error(e); } finally { setAiLoadingMap(prev => ({ ...prev, [`ind-${item.id}`]: false })); }
+      const indikator = await generateIndikatorSoal(item);
+      await updateKisiKisi(item.id, 'indikatorSoal', indikator);
+    } catch (e: any) {
+      alert("Gagal memanggil AI: " + e.message);
+    } finally { 
+      setAiLoadingMap(prev => ({ ...prev, [`ind-${item.id}`]: false })); 
+    }
   };
 
   const generateSoalAI = async (item: KisiKisiItem) => {
     if (!item.indikatorSoal) return;
     setAiLoadingMap(prev => ({ ...prev, [`soal-${item.id}`]: true }));
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
-        contents: `Buatkan 1 butir soal AKM SD Kelas ${item.kelas}. Indikator: ${item.indikatorSoal}, Bentuk: ${item.bentukSoal}. Gunakan tabel markdown jika soal membutuhkan pilihan Benar/Salah. Format output: SOAL: [Konten] KUNCI: [Jawaban].`,
-      });
-      const fullText = response.text || "";
-      const soalPart = fullText.match(/SOAL:([\s\S]*?)KUNCI:/i)?.[1]?.trim() || fullText;
-      const kunciPart = fullText.match(/KUNCI:([\s\S]*)/i)?.[1]?.trim() || "";
-      await updateDoc(doc(db, "kisikisi", item.id), { soal: soalPart, kunciJawaban: kunciPart });
-    } catch (e) { console.error(e); } finally { setAiLoadingMap(prev => ({ ...prev, [`soal-${item.id}`]: false })); }
+      const result = await generateButirSoal(item);
+      await updateDoc(doc(db, "kisikisi", item.id), { soal: result.soal, kunciJawaban: result.kunci });
+    } catch (e: any) {
+      alert("Gagal memanggil AI: " + e.message);
+    } finally { 
+      setAiLoadingMap(prev => ({ ...prev, [`soal-${item.id}`]: false })); 
+    }
   };
 
   const renderSoalContent = (content: string, isPrint = false) => {
@@ -276,81 +272,11 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
 
   const isClassLocked = user.role === 'guru' && user.teacherType === 'kelas';
 
-  if (isPrintMode) {
-    return (
-      <div className="bg-white min-h-screen p-12 font-serif text-black">
-        <div className="no-print fixed top-6 right-6 flex gap-3 z-[200]">
-          <button onClick={() => setIsPrintMode(false)} className="bg-slate-800 text-white px-6 py-2 rounded-xl text-xs font-black">KEMBALI</button>
-          <button onClick={handlePrint} className="bg-rose-600 text-white px-6 py-2 rounded-xl text-xs font-black shadow-lg flex items-center gap-2">
-            <Printer size={16}/> CETAK PDF
-          </button>
-        </div>
-        
-        <div className="no-print bg-amber-50 border border-amber-200 p-4 rounded-2xl mb-8 text-[10px] font-bold text-amber-800 flex items-center gap-3">
-          <AlertCircle size={16}/> 
-          Jika dialog cetak tidak terbuka, pastikan pop-up di browser Anda tidak terblokir.
-        </div>
-
-        <div ref={printRef} className="max-w-[21cm] mx-auto bg-white">
-          <KopSoalFormal activeTab={activeTab} />
-          {activeTab === 'KISI_KISI' ? (
-            <table className="w-full border-collapse border-[1.5px] border-black text-[10px]">
-              <thead>
-                <tr className="bg-slate-100">
-                  <th className="border-2 border-black p-2 text-center w-8">No</th>
-                  <th className="border-2 border-black p-2 text-left w-32">Elemen & CP</th>
-                  <th className="border-2 border-black p-2 text-left">Tujuan Pembelajaran</th>
-                  <th className="border-2 border-black p-2 text-left">Indikator Soal</th>
-                  <th className="border-2 border-black p-2 text-center w-16">Bentuk</th>
-                  <th className="border-2 border-black p-2 text-left w-48">Butir Soal</th>
-                  <th className="border-2 border-black p-2 text-left w-16">Kunci</th>
-                  <th className="border-2 border-black p-2 text-center w-8">No.S</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredKisikisi.map((k, i) => (
-                  <tr key={k.id} className="break-inside-avoid">
-                    <td className="border-2 border-black p-2 text-center">{i + 1}</td>
-                    <td className="border-2 border-black p-2"><b>{k.elemen}</b><div className="text-[7px] italic text-slate-600 leading-tight">{k.cp}</div></td>
-                    <td className="border-2 border-black p-2 text-[8px]">{k.tujuanPembelajaran}</td>
-                    <td className="border-2 border-black p-2 italic text-[8px]">{k.indikatorSoal}</td>
-                    <td className="border-2 border-black p-2 text-center text-[7px]">{k.bentukSoal}</td>
-                    <td className="border-2 border-black p-2 text-[8px] leading-relaxed">
-                      {renderSoalContent(k.soal, true)}
-                    </td>
-                    <td className="border-2 border-black p-2 text-center text-[8px]">{k.kunciJawaban}</td>
-                    <td className="border-2 border-black p-2 text-center">{k.nomorSoal}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <div className="space-y-6 px-4">
-              {filteredKisikisi.map(item => (
-                <div key={item.id} className="flex gap-4 items-start break-inside-avoid">
-                  <span className="font-black text-sm">{item.nomorSoal}.</span>
-                  <div className="flex-1">
-                    <div className="text-[13px] leading-relaxed text-justify">{renderSoalContent(item.soal, true)}</div>
-                    {(item.bentukSoal === 'Isian' || item.bentukSoal === 'Uraian') && <div className="border-b border-dotted border-black w-full mt-10"></div>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="mt-16 grid grid-cols-2 text-[12px] font-black uppercase text-center break-inside-avoid">
-             <div><p>Mengetahui,</p><p>Kepala Sekolah</p><div className="h-24"></div><p className="border-b border-black inline-block min-w-[160px]">{settings.principalName}</p><p className="font-normal text-[10px]">NIP. {settings.principalNip}</p></div>
-             <div><p>Bilato, {hariTanggal || '........'}</p><p>Guru Mata Pelajaran</p><div className="h-24"></div><p className="border-b border-black inline-block min-w-[160px]">{user.name}</p><p className="font-normal text-[10px]">NIP. {user.nip}</p></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6 pb-20 animate-in fade-in duration-500">
       {showAddAsesmenModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[250] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95">
+          <div className="bg-white rounded-[40px] shadow-2xl w-full max-md overflow-hidden animate-in zoom-in-95">
             <div className="p-8">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-black text-slate-900 uppercase">Buat Asesmen Baru</h3>
@@ -464,14 +390,18 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
                     </td>
                     <td className="px-6 py-4 relative group">
                       <textarea className="w-full bg-white border border-slate-200 rounded-xl p-2 text-[10px] font-medium min-h-[80px]" value={item.indikatorSoal} onChange={e => updateKisiKisi(item.id, 'indikatorSoal', e.target.value)} />
-                      <button onClick={() => generateIndikatorAI(item)} className="absolute bottom-6 right-8 text-indigo-600 bg-white p-1 rounded shadow-sm"><Sparkles size={14}/></button>
+                      <button onClick={() => generateIndikatorAI(item)} className="absolute bottom-6 right-8 text-indigo-600 bg-white p-1 rounded shadow-sm">
+                        {aiLoadingMap[`ind-${item.id}`] ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14}/>}
+                      </button>
                     </td>
                     <td className="px-6 py-4">
                       <select className="w-full text-[10px] font-bold p-1 border rounded" value={item.bentukSoal} onChange={e => updateKisiKisi(item.id, 'bentukSoal', e.target.value)}><option>Pilihan Ganda</option><option>Pilihan Ganda Kompleks</option><option>Isian</option><option>Uraian</option></select>
                     </td>
                     <td className="px-6 py-4 relative group">
                        <textarea className="w-full bg-white border border-slate-200 rounded-xl p-2 text-[11px] font-medium min-h-[140px]" value={item.soal} onChange={e => updateKisiKisi(item.id, 'soal', e.target.value)} />
-                       <button onClick={() => generateSoalAI(item)} className="absolute bottom-6 right-8 bg-rose-600 text-white p-1.5 rounded-lg shadow-md"><Wand2 size={14}/></button>
+                       <button onClick={() => generateSoalAI(item)} className="absolute bottom-6 right-8 bg-rose-600 text-white p-1.5 rounded-lg shadow-md">
+                         {aiLoadingMap[`soal-${item.id}`] ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14}/>}
+                       </button>
                     </td>
                     <td className="px-6 py-4 text-center"><input className="w-full text-[10px] text-center font-medium p-1 border rounded" value={item.kunciJawaban} onChange={e => updateKisiKisi(item.id, 'kunciJawaban', e.target.value)} /></td>
                     <td className="px-6 py-4 text-center"><button onClick={() => deleteDoc(doc(db, "kisikisi", item.id))} className="text-red-400 hover:text-red-600"><Trash2 size={16}/></button></td>

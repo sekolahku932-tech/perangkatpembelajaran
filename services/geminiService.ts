@@ -14,31 +14,24 @@ export const setGeminiKey = (key: string) => {
 };
 
 const getApiKey = () => {
-  // 1. Prioritas: Kunci dari Database (Firebase/Local)
   if (dynamicApiKey) return dynamicApiKey;
-
-  // 2. Backup: LocalStorage
   const storedKey = localStorage.getItem('GEMINI_API_KEY');
   if (storedKey && storedKey.trim() !== '') return storedKey;
-
-  // 3. Terakhir: Environment Variable
   const envKey = process.env.API_KEY || (window as any).process?.env?.API_KEY;
   if (envKey && envKey !== 'undefined' && envKey !== '') return envKey;
-
   return null;
 };
 
 /**
- * MENGGUNAKAN FLASH UNTUK SEMUA TUGAS
- * Akun gratis memiliki kuota jauh lebih besar di model Flash (15 RPM) 
- * dibandingkan model Pro (hanya 2 RPM). Ini solusi utama untuk error 429.
+ * MENGGUNAKAN FLASH LITE UNTUK KUOTA MAKSIMAL
+ * Model 'lite' memiliki batas Rate Limit yang sangat tinggi pada akun gratis.
  */
-const DEFAULT_MODEL = 'gemini-3-flash-preview';
+const DEFAULT_MODEL = 'gemini-flash-lite-latest';
 
 const getAI = () => {
   const apiKey = getApiKey();
   if (!apiKey) {
-    console.error("AI Error: Kunci API tidak ditemukan di sistem.");
+    console.error("AI Error: Kunci API tidak ditemukan.");
     throw new Error('API_KEY_MISSING');
   }
   return new GoogleGenAI({ apiKey });
@@ -53,8 +46,7 @@ const handleGeminiError = (error: any) => {
     throw new Error('API_KEY_MISSING');
   }
   
-  // Deteksi Kuota Habis (Error 429)
-  if (errorStr.includes('429') || errorStr.includes('quota') || errorStr.includes('resource_exhausted') || errorStr.includes('limit')) {
+  if (errorStr.includes('429') || errorStr.includes('quota') || errorStr.includes('resource_exhausted')) {
     throw new Error('QUOTA_EXCEEDED');
   }
 
@@ -163,7 +155,7 @@ export const generateRPMContent = async (tp: string, materi: string, kelas: stri
     const ai = getAI();
     const response = await ai.models.generateContent({
       model: DEFAULT_MODEL,
-      contents: `Susun RPM SD Kelas ${kelas} (${jumlahPertemuan} sesi). Tujuan: ${tp}. Materi: ${materi}. Model: ${praktikPedagogis}. Gunakan format daftar bernomor vertikal.`,
+      contents: `Susun RPM SD Kelas ${kelas} (${jumlahPertemuan} sesi). Tujuan: ${tp}. Materi: ${materi}. Model: ${praktikPedagogis}.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -190,10 +182,9 @@ export const generateRPMContent = async (tp: string, materi: string, kelas: stri
 export const generateAssessmentDetails = async (tp: string, materi: string, kelas: string, narasiAwal: string, narasiProses: string, narasiAkhir: string) => {
   try {
     const ai = getAI();
-    // Mengalihkan ke FLASH agar tidak terkena limit 429 yang ketat di model PRO
     const response = await ai.models.generateContent({
       model: DEFAULT_MODEL,
-      contents: `Buat rubrik asesmen lengkap 3 BAGIAN (AWAL, PROSES, AKHIR) untuk TP: "${tp}" SD Kelas ${kelas}.`,
+      contents: `Buat rubrik asesmen lengkap 3 BAGIAN untuk TP: "${tp}" SD Kelas ${kelas}.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -251,6 +242,36 @@ export const generateLKPDContent = async (rpm: any) => {
     });
     return JSON.parse(response.text || '{}');
   } catch (error: any) {
+    return handleGeminiError(error);
+  }
+};
+
+// FUNGSI BARU UNTUK ASESMEN MANAGER
+export const generateIndikatorSoal = async (item: any) => {
+  try {
+    const ai = getAI();
+    const response = await ai.models.generateContent({
+      model: DEFAULT_MODEL,
+      contents: `Buatkan 1 kalimat indikator soal AKM SD. Mapel: ${item.mataPelajaran}, Kelas: ${item.kelas}, Kompetensi: ${item.kompetensi}, TP: ${item.tujuanPembelajaran}. Berikan langsung kalimatnya saja.`,
+    });
+    return response.text?.trim() || "";
+  } catch (error) {
+    return handleGeminiError(error);
+  }
+};
+
+export const generateButirSoal = async (item: any) => {
+  try {
+    const ai = getAI();
+    const response = await ai.models.generateContent({
+      model: DEFAULT_MODEL,
+      contents: `Buatkan 1 butir soal AKM SD Kelas ${item.kelas}. Indikator: ${item.indikatorSoal}, Bentuk: ${item.bentukSoal}. Gunakan tabel markdown jika soal membutuhkan pilihan Benar/Salah. Format output: SOAL: [Konten] KUNCI: [Jawaban].`,
+    });
+    const fullText = response.text || "";
+    const soalPart = fullText.match(/SOAL:([\s\S]*?)KUNCI:/i)?.[1]?.trim() || fullText;
+    const kunciPart = fullText.match(/KUNCI:([\s\S]*)/i)?.[1]?.trim() || "";
+    return { soal: soalPart, kunci: kunciPart };
+  } catch (error) {
     return handleGeminiError(error);
   }
 };
