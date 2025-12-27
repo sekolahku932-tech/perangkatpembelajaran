@@ -29,9 +29,10 @@ const getApiKey = () => {
 };
 
 /**
- * Menggunakan model Gemini 1.5 Flash karena paling stabil dan mendukung kuota gratis yang besar.
+ * Menggunakan model Gemini 3 Flash (Terbaru & Stabil)
  */
-const DEFAULT_MODEL = 'gemini-1.5-flash';
+const DEFAULT_MODEL = 'gemini-3-flash-preview';
+const PRO_MODEL = 'gemini-3-pro-preview';
 
 const getAI = () => {
   const apiKey = getApiKey();
@@ -39,7 +40,6 @@ const getAI = () => {
     console.error("AI Error: Kunci API tidak ditemukan di sistem.");
     throw new Error('API_KEY_MISSING');
   }
-  // Inisialisasi sesuai Guideline
   return new GoogleGenAI({ apiKey });
 };
 
@@ -56,7 +56,6 @@ const handleGeminiError = (error: any) => {
   if (msg.includes('429') || msg.includes('quota') || msg.includes('limit')) {
     throw new Error('QUOTA_EXCEEDED');
   }
-  // Lempar error asli untuk ditangkap UI Debugging
   throw error;
 };
 
@@ -186,7 +185,7 @@ export const generateAssessmentDetails = async (tp: string, materi: string, kela
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-1.5-pro', // Gunakan pro untuk rubrik berkualitas tinggi jika memungkinkan
+      model: PRO_MODEL,
       contents: `Buat rubrik asesmen lengkap 3 BAGIAN (AWAL, PROSES, AKHIR) untuk TP: "${tp}" SD Kelas ${kelas}.`,
       config: {
         responseMimeType: "application/json",
@@ -219,7 +218,6 @@ export const generateAssessmentDetails = async (tp: string, materi: string, kela
     });
     return response.text?.trim() || "[]";
   } catch (error: any) {
-    // Jika gemini-1.5-pro gagal, fallback ke default flash
     try {
       const aiFallback = getAI();
       const responseFallback = await aiFallback.models.generateContent({

@@ -67,9 +67,9 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
       if (rawMsg === 'API_KEY_MISSING') {
         errorType = 'AUTH';
         errorText = 'Kunci API Gemini tidak terdeteksi. Silakan masukkan kunci di menu Pengaturan.';
-      } else if (rawMsg === 'MODEL_NOT_READY') {
+      } else if (rawMsg === 'MODEL_NOT_READY' || rawMsg.includes('404')) {
         errorType = 'MODEL';
-        errorText = 'Model Gemini tidak merespon. Kunci API Anda mungkin belum mendukung model ini.';
+        errorText = 'Model Gemini tidak merespon atau tidak ditemukan. Mengalihkan ke model terbaru...';
       } else if (rawMsg === 'QUOTA_EXCEEDED') {
         errorType = 'QUOTA';
         errorText = 'Batas penggunaan harian API gratis Anda telah habis.';
@@ -188,7 +188,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
                 {isLoading ? <Loader2 size={16} className="animate-spin"/> : <Send size={16}/>}
               </button>
             </div>
-            <p className="text-[8px] text-center text-slate-400 mt-3 font-bold uppercase tracking-widest">Model: Gemini 1.5 Flash</p>
+            <p className="text-[8px] text-center text-slate-400 mt-3 font-bold uppercase tracking-widest">Model: Gemini 3 Flash</p>
           </div>
         </>
       )}
