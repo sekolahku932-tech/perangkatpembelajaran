@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Fase, Kelas, RPMItem, ATPItem, PromesItem, CapaianPembelajaran, MATA_PELAJARAN, DIMENSI_PROFIL, SchoolSettings, User } from '../types';
-import { Plus, Trash2, Rocket, Sparkles, Loader2, CheckCircle2, Printer, Cloud, ClipboardList, Info, FileText, Split, AlertTriangle, FileDown, Wand2, PencilLine, Lock, Heart, Brain, Zap, Smile, Search, RefreshCw, CheckSquare, Square, AlertCircle, Cpu } from 'lucide-react';
+import { Plus, Trash2, Rocket, Sparkles, Loader2, CheckCircle2, Printer, Cloud, FileText, Split, AlertTriangle, FileDown, Wand2, PencilLine, Lock, Brain, Zap, RefreshCw, PenTool, Search, AlertCircle, X, CheckSquare, Square, Cpu, ClipboardList } from 'lucide-react';
 import { generateRPMContent, generateAssessmentDetails, recommendPedagogy } from '../services/geminiService';
 import { db, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from '../services/firebase';
 
@@ -111,6 +110,11 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
     return () => { unsubSettings(); unsubYears(); unsubRpm(); unsubAtp(); unsubCps(); unsubPromes(); };
   }, []);
 
+  const currentRpm = useMemo(() => {
+    if (!isEditing) return null;
+    return rpmList.find(r => r.id === isEditing) || null;
+  }, [rpmList, isEditing]);
+
   const sortedAtpOptions = useMemo(() => {
     const filtered = atpData.filter(a => 
       a.fase === filterFase && 
@@ -146,7 +150,7 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
     let result = content;
     keywords.forEach(word => {
       const regex = new RegExp(`\\b(${word})\\b`, 'gi');
-      result = result.replace(regex, '<span class="text-blue-700 font-black underline decoration-indigo-300">$1</span>');
+      result = result.replace(regex, `<span class="px-1 bg-amber-100 text-amber-900 font-black rounded-sm border-b-2 border-amber-400">$1</span>`);
     });
     return result;
   };
@@ -211,7 +215,7 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
   };
 
   const handleExportWord = () => {
-    const rpm = rpmList.find(r => r.id === isEditing);
+    const rpm = currentRpm;
     if (!rpm) return;
     const header = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>RPM</title><style>table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid black; padding: 5px; font-family: 'Arial'; font-size: 10pt; vertical-align: top; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .bg-gray { background-color: #f3f4f6; }</style></head><body>`;
     const footer = "</body></html>";
@@ -246,6 +250,7 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
     link.href = url;
     link.download = `RPM_${rpm.materi.replace(/ /g, '_')}.doc`;
     link.click();
+    URL.revokeObjectURL(url);
   };
 
   const renderAsesmenTable = (data: AsesmenRow[], isPrint: boolean = false) => {
@@ -387,7 +392,11 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
 
   const executeDelete = async () => {
     if (!deleteConfirmId) return;
-    try { await deleteDoc(doc(db, "rpm", deleteConfirmId)); setDeleteConfirmId(null); setMessage({ text: 'Dihapus!', type: 'success' }); } catch (e) { setMessage({ text: 'Gagal!', type: 'error' }); }
+    try {
+      await deleteDoc(doc(db, "rpm", deleteConfirmId));
+      setDeleteConfirmId(null);
+      setMessage({ text: 'Dihapus!', type: 'success' });
+    } catch (e) { setMessage({ text: 'Gagal!', type: 'error' }); }
   };
 
   const getRPMDate = (rpm: RPMItem) => {
@@ -415,8 +424,8 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
     } catch (err) { setMessage({ text: 'Gagal mendapatkan rekomendasi AI', type: 'error' }); } finally { setIsLoadingPedagogyAI(false); }
   };
 
-  if (isPrintMode && isEditing) {
-    const rpm = rpmList.find(r => r.id === isEditing)!;
+  if (isPrintMode && isEditing && currentRpm) {
+    const rpm = currentRpm;
     const count = rpm.jumlahPertemuan || 1;
     const asesmenData = parseAsesmen(rpm.asesmenTeknik);
     const datumDate = getRPMDate(rpm);
@@ -576,9 +585,16 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
       {message && (<div className={`fixed top-24 right-8 z-[100] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border ${message.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : message.type === 'error' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}><CheckCircle2 size={20}/><span className="text-sm font-black uppercase tracking-tight">{message.text}</span></div>)}
       {deleteConfirmId && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[250] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[32px] shadow-2xl w-full max-sm overflow-hidden animate-in zoom-in-95">
-            <div className="p-8 text-center"><div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6 mx-auto"><AlertTriangle size={32} /></div><h3 className="text-xl font-black text-slate-900 uppercase mb-2">Hapus RPM</h3><p className="text-slate-500 font-medium text-sm leading-relaxed">Hapus baris RPM dari database cloud?</p></div>
-            <div className="p-4 bg-slate-50 flex gap-3"><button onClick={() => setDeleteConfirmId(null)} className="flex-1 px-6 py-3 rounded-xl text-xs font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-100 transition-all">BATAL</button><button onClick={executeDelete} className="flex-1 px-6 py-3 rounded-xl text-xs font-black text-white bg-red-600 hover:bg-red-700 shadow-lg">YA, HAPUS</button></div>
+          <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95">
+            <div className="p-8 text-center">
+              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6 mx-auto"><AlertTriangle size={32} /></div>
+              <h3 className="text-xl font-black text-slate-900 uppercase mb-2">Hapus RPM</h3>
+              <p className="text-slate-500 font-medium text-sm leading-relaxed">Hapus baris RPM dari database cloud?</p>
+            </div>
+            <div className="p-4 bg-slate-50 flex gap-3">
+              <button onClick={() => setDeleteConfirmId(null)} className="flex-1 px-6 py-3 rounded-xl text-xs font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-100">BATAL</button>
+              <button onClick={executeDelete} className="flex-1 px-6 py-3 rounded-xl text-xs font-black text-white bg-red-600 hover:bg-red-700 shadow-lg">YA, HAPUS</button>
+            </div>
           </div>
         </div>
       )}
@@ -600,88 +616,94 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
                   <div className="text-center">
                     <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight mb-2">Analisis AI Berjalan</h3>
                     <p className="text-slate-500 font-medium max-w-xs leading-relaxed italic">
-                      "Menyusun alur mendalam berbasis 3M for ${rpmList.find(r => r.id === isEditing)?.jumlahPertemuan} sesi..."
+                      {`Menyusun alur mendalam berbasis 3M untuk ${currentRpm?.jumlahPertemuan || 1} sesi...`}
                     </p>
                   </div>
                 </div>
               )}
 
-              <div className="space-y-6">
-                <div className="flex items-center gap-2 border-b border-slate-100 pb-2"><div className="w-1.5 h-6 bg-blue-600 rounded-full"></div><h4 className="font-black text-slate-800 uppercase text-xs tracking-widest">1. Identitas & Sesi</h4></div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                  <div className="md:col-span-2 space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 ml-1">Fase / Kelas</label><div className="flex gap-2"><div className="flex-1 bg-slate-100 p-3 rounded-xl text-xs font-black text-slate-600 border border-slate-200">{filterFase}</div><div className="flex-1 bg-slate-100 p-3 rounded-xl text-xs font-black text-slate-600 border border-slate-200">Kelas {filterKelas}</div></div></div>
-                      <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 ml-1">Jumlah Pertemuan (Manual)</label><div className="relative"><Split size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-500" /><input type="number" min="1" className="w-full bg-indigo-50 border border-indigo-100 rounded-xl py-3 pl-10 pr-4 text-xs font-black text-indigo-700 outline-none" value={rpmList.find(r => r.id === isEditing)?.jumlahPertemuan || 1} onChange={e => updateRPM(isEditing!, 'jumlahPertemuan', parseInt(e.target.value) || 1)} /></div></div>
-                    </div>
-                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 ml-1">Tujuan Pembelajaran</label>
-                    <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs font-bold text-slate-800 outline-none" value={rpmList.find(r => r.id === isEditing)?.atpId} onChange={e => syncWithATP(isEditing!, e.target.value)}><option value="">-- PILIH TP DARI ATP --</option>{sortedAtpOptions.map(a => (<option key={a.id} value={a.id}>{a.tujuanPembelajaran}</option>))}</select>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 flex justify-between items-center"><span className="flex items-center gap-1"><PencilLine size={10}/> Model Pembelajaran</span><button onClick={() => handleRecommendPedagogy(isEditing!)} className="text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-all"><Wand2 size={10}/><span className="text-[8px] font-black uppercase">REKOMENDASI AI</span></button></label><input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs font-black text-slate-700 outline-none" value={rpmList.find(r => r.id === isEditing)?.praktikPedagogis || ''} onChange={e => updateRPM(isEditing!, 'praktikPedagogis', e.target.value)} /></div>
-                      <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Alokasi Waktu</label><div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col gap-1"><span className="text-xs font-black text-slate-800">{rpmList.find(r => r.id === isEditing)?.alokasiWaktu || '0'} JP Total</span><span className="text-[10px] font-bold text-blue-600">Terdistribusi ke {rpmList.find(r => r.id === isEditing)?.jumlahPertemuan || 1} sesi</span></div></div>
+              {currentRpm ? (
+                <>
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-2 border-b border-slate-100 pb-2"><div className="w-1.5 h-6 bg-blue-600 rounded-full"></div><h4 className="font-black text-slate-800 uppercase text-xs tracking-widest">1. Identitas & Sesi</h4></div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                      <div className="md:col-span-2 space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 ml-1">Fase / Kelas</label><div className="flex gap-2"><div className="flex-1 bg-slate-100 p-3 rounded-xl text-xs font-black text-slate-600 border border-slate-200">{filterFase}</div><div className="flex-1 bg-slate-100 p-3 rounded-xl text-xs font-black text-slate-600 border border-slate-200">Kelas {filterKelas}</div></div></div>
+                          <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 ml-1">Jumlah Pertemuan (Manual)</label><div className="relative"><Split size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-indigo-500" /><input type="number" min="1" className="w-full bg-indigo-50 border border-indigo-100 rounded-xl py-3 pl-10 pr-4 text-xs font-black text-indigo-700 outline-none" value={currentRpm?.jumlahPertemuan || 1} onChange={e => updateRPM(isEditing!, 'jumlahPertemuan', parseInt(e.target.value) || 1)} /></div></div>
+                        </div>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 ml-1">Tujuan Pembelajaran</label>
+                        <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs font-bold text-slate-800 outline-none" value={currentRpm?.atpId} onChange={e => syncWithATP(isEditing!, e.target.value)}><option value="">-- PILIH TP DARI ATP --</option>{sortedAtpOptions.map(a => (<option key={a.id} value={a.id}>{a.tujuanPembelajaran}</option>))}</select>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 flex justify-between items-center"><span className="flex items-center gap-1"><PencilLine size={10}/> Model Pembelajaran</span><button onClick={() => handleRecommendPedagogy(isEditing!)} className="text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-all"><Wand2 size={10}/><span className="text-[8px] font-black uppercase">REKOMENDASI AI</span></button></label><input type="text" className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs font-black text-slate-700 outline-none" value={currentRpm?.praktikPedagogis || ''} onChange={e => updateRPM(isEditing!, 'praktikPedagogis', e.target.value)} /></div>
+                          <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Alokasi Waktu</label><div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col gap-1"><span className="text-xs font-black text-slate-800">{currentRpm?.alokasiWaktu || '0'} JP Total</span><span className="text-[10px] font-bold text-blue-600">Terdistribusi ke {currentRpm?.jumlahPertemuan || 1} sesi</span></div></div>
+                        </div>
+                      </div>
+                      <div className="bg-slate-50/50 p-6 rounded-[32px] border border-slate-200 shadow-inner">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest ml-1">Dimensi Profil (DPL)</label>
+                        <div className="grid grid-cols-1 gap-y-3">
+                          {DIMENSI_PROFIL.map((dimensi, idx) => {
+                            const currentDimensi = currentRpm?.dimensiProfil || [];
+                            const isChecked = currentDimensi.includes(dimensi);
+                            return (
+                              <label key={dimensi} className="flex items-start gap-2 cursor-pointer group">
+                                <input type="checkbox" className="hidden" checked={isChecked} onChange={() => {const newDimensi = isChecked ? currentDimensi.filter(d => d !== dimensi) : [...currentDimensi, dimensi]; updateRPM(isEditing!, 'dimensiProfil', newDimensi);}} />
+                                <div className={`mt-0.5 transition-all p-0.5 rounded border ${isChecked ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-300'}`}>{isChecked ? <CheckSquare size={14} className="text-white" /> : <div className="w-3.5 h-3.5" />}</div>
+                                <div className="flex flex-col">
+                                  <span className={`text-[8px] font-black uppercase ${isChecked ? 'text-blue-600' : 'text-slate-300'}`}>DPL {idx + 1}</span>
+                                  <span className={`text-[10px] font-bold leading-tight ${isChecked ? 'text-slate-900' : 'text-slate-400'}`}>{dimensi}</span>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div className="bg-slate-50/50 p-6 rounded-[32px] border border-slate-200 shadow-inner">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest ml-1">Dimensi Profil (DPL)</label>
-                    <div className="grid grid-cols-1 gap-y-3">
-                      {DIMENSI_PROFIL.map((dimensi, idx) => {
-                        const currentDimensi = rpmList.find(r => r.id === isEditing)?.dimensiProfil || [];
-                        const isChecked = currentDimensi.includes(dimensi);
-                        return (
-                          <label key={dimensi} className="flex items-start gap-2 cursor-pointer group">
-                            <input type="checkbox" className="hidden" checked={isChecked} onChange={() => {const newDimensi = isChecked ? currentDimensi.filter(d => d !== dimensi) : [...currentDimensi, dimensi]; updateRPM(isEditing!, 'dimensiProfil', newDimensi);}} />
-                            <div className={`mt-0.5 transition-all p-0.5 rounded border ${isChecked ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-300'}`}>{isChecked ? <CheckSquare size={14} className="text-white" /> : <div className="w-3.5 h-3.5" />}</div>
-                            <div className="flex flex-col">
-                              <span className={`text-[8px] font-black uppercase ${isChecked ? 'text-blue-600' : 'text-slate-300'}`}>DPL {idx + 1}</span>
-                              <span className={`text-[10px] font-bold leading-tight ${isChecked ? 'text-slate-900' : 'text-slate-400'}`}>{dimensi}</span>
-                            </div>
-                          </label>
-                        );
-                      })}
-                    </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Kemitraan (Orang Tua)</label><textarea className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs min-h-[100px]" value={currentRpm?.kemitraan || ''} onChange={e => updateRPM(isEditing!, 'kemitraan', e.target.value)} /></div>
+                    <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Lingkungan Belajar</label><textarea className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs min-h-[100px]" value={currentRpm?.lingkunganBelajar || ''} onChange={e => updateRPM(isEditing!, 'lingkunganBelajar', e.target.value)} /></div>
+                    <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Pemanfaatan Digital</label><textarea className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs min-h-[100px]" value={currentRpm?.pemanfaatanDigital || ''} onChange={e => updateRPM(isEditing!, 'pemanfaatanDigital', e.target.value)} /></div>
                   </div>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Kemitraan (Orang Tua)</label><textarea className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs min-h-[100px]" value={rpmList.find(r => r.id === isEditing)?.kemitraan || ''} onChange={e => updateRPM(isEditing!, 'kemitraan', e.target.value)} /></div>
-                <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Lingkungan Belajar</label><textarea className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs min-h-[100px]" value={rpmList.find(r => r.id === isEditing)?.lingkunganBelajar || ''} onChange={e => updateRPM(isEditing!, 'lingkunganBelajar', e.target.value)} /></div>
-                <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Pemanfaatan Digital</label><textarea className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs min-h-[100px]" value={rpmList.find(r => r.id === isEditing)?.pemanfaatanDigital || ''} onChange={e => updateRPM(isEditing!, 'pemanfaatanDigital', e.target.value)} /></div>
-              </div>
 
-              <div className="space-y-6">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2"><div className="flex items-center gap-2"><div className="w-1.5 h-6 bg-cyan-600 rounded-full"></div><h4 className="font-black text-slate-800 uppercase text-xs tracking-widest">2. Alur Pembelajaran Mendalam (Struktur 3M)</h4></div><button onClick={() => handleGenerateAI(isEditing!)} disabled={isLoadingAI} className="flex items-center gap-2 bg-cyan-600 text-white px-8 py-3 rounded-2xl text-xs font-black shadow-xl hover:bg-cyan-700 transition-all active:scale-95 disabled:opacity-50">{isLoadingAI ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16}/>} ANALISIS CEPAT AI</button></div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="p-6 bg-blue-50 rounded-[40px] border border-blue-100 flex flex-col group/col"><h5 className="text-[10px] font-black text-blue-900 uppercase mb-4 flex items-center gap-2"><Brain size={14}/> I. MEMAHAMI</h5><textarea className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-xs min-h-[250px] focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={rpmList.find(r => r.id === isEditing)?.kegiatanAwal} placeholder="Pertemuan 1: Langkah pemahaman...\n\nPertemuan 2: dst..." onChange={e => updateRPM(isEditing!, 'kegiatanAwal', e.target.value)} /></div>
-                  <div className="p-6 bg-emerald-50 rounded-[40px] border border-emerald-100 flex flex-col group/col"><h5 className="text-[10px] font-black text-emerald-900 uppercase mb-4 flex items-center gap-2"><Zap size={14}/> II. MENGAPLIKASI</h5><textarea className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-xs min-h-[250px] focus:ring-2 focus:ring-emerald-500 outline-none transition-all" value={rpmList.find(r => r.id === isEditing)?.kegiatanInti} placeholder="Pertemuan 1: Langkah praktik...\n\nPertemuan 2: dst..." onChange={e => updateRPM(isEditing!, 'kegiatanInti', e.target.value)} /></div>
-                  <div className="p-6 bg-rose-50 rounded-[40px] border border-rose-100 flex flex-col group/col"><h5 className="text-[10px] font-black text-rose-900 uppercase mb-4 flex items-center gap-2"><RefreshCw size={14}/> III. MEREFLEKSI</h5><textarea className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-xs min-h-[250px] focus:ring-2 focus:ring-rose-500 outline-none transition-all" value={rpmList.find(r => r.id === isEditing)?.kegiatanPenutup} placeholder="Pertemuan 1: Langkah refleksi...\n\nPertemuan 2: dst..." onChange={e => updateRPM(isEditing!, 'kegiatanPenutup', e.target.value)} /></div>
-                </div>
-              </div>
-
-              <div className="space-y-6">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="w-1.5 h-6 bg-slate-800 rounded-full"></div>
-                    <h4 className="font-black text-slate-800 uppercase text-xs tracking-widest">3. Strategi Asesmen (Rubrik Awal, Proses & Akhir)</h4>
-                  </div>
-                  <button onClick={() => handleGenerateAsesmenAI(isEditing!)} disabled={isLoadingAsesmenAI} className="flex items-center gap-2 bg-indigo-600 text-white px-8 py-3 rounded-2xl text-xs font-black shadow-xl hover:bg-indigo-700">
-                    {isLoadingAsesmenAI ? <Loader2 size={16} className="animate-spin" /> : <ClipboardList size={16}/>} 
-                    SUSUN 3 RUBRIK (AI)
-                  </button>
-                </div>
-                <div className="bg-white p-8 rounded-[40px] border border-slate-200 min-h-[200px]">
-                  {parseAsesmen(rpmList.find(r => r.id === isEditing)?.asesmenTeknik || "") ? (
-                    renderAsesmenTable(parseAsesmen(rpmList.find(r => r.id === isEditing)?.asesmenTeknik || "")!)
-                  ) : (
-                    <div className="flex flex-col items-center justify-center py-20 text-slate-400 gap-4">
-                      {isLoadingAsesmenAI ? <Loader2 size={48} className="animate-spin text-indigo-600" /> : <FileText size={48} className="opacity-20"/>}
-                      <p className="text-xs font-black uppercase tracking-widest text-center">
-                        {isLoadingAsesmenAI ? "AI sedang menyusun rubrik..." : "Klik Susun 3 Rubrik untuk menghasilkan tabel penilaian lengkap"}
-                      </p>
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2"><div className="flex items-center gap-2"><div className="w-1.5 h-6 bg-cyan-600 rounded-full"></div><h4 className="font-black text-slate-800 uppercase text-xs tracking-widest">2. Alur Pembelajaran Mendalam (Struktur 3M)</h4></div><button onClick={() => handleGenerateAI(isEditing!)} disabled={isLoadingAI} className="flex items-center gap-2 bg-cyan-600 text-white px-8 py-3 rounded-2xl text-xs font-black shadow-xl hover:bg-cyan-700 transition-all active:scale-95 disabled:opacity-50">{isLoadingAI ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16}/>} ANALISIS CEPAT AI</button></div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="p-6 bg-blue-50 rounded-[40px] border border-blue-100 flex flex-col group/col"><h5 className="text-[10px] font-black text-blue-900 uppercase mb-4 flex items-center gap-2"><Brain size={14}/> I. MEMAHAMI</h5><textarea className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-xs min-h-[250px] focus:ring-2 focus:ring-blue-500 outline-none transition-all" value={currentRpm?.kegiatanAwal || ''} placeholder="Pertemuan 1: Langkah pemahaman...\n\nPertemuan 2: dst..." onChange={e => updateRPM(isEditing!, 'kegiatanAwal', e.target.value)} /></div>
+                      <div className="p-6 bg-emerald-50 rounded-[40px] border border-emerald-100 flex flex-col group/col"><h5 className="text-[10px] font-black text-emerald-900 uppercase mb-4 flex items-center gap-2"><Zap size={14}/> II. MENGAPLIKASI</h5><textarea className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-xs min-h-[250px] focus:ring-2 focus:ring-emerald-500 outline-none transition-all" value={currentRpm?.kegiatanInti || ''} placeholder="Pertemuan 1: Langkah praktik...\n\nPertemuan 2: dst..." onChange={e => updateRPM(isEditing!, 'kegiatanInti', e.target.value)} /></div>
+                      <div className="p-6 bg-rose-50 rounded-[40px] border border-rose-100 flex flex-col group/col"><h5 className="text-[10px] font-black text-rose-900 uppercase mb-4 flex items-center gap-2"><RefreshCw size={14}/> III. MEREFLEKSI</h5><textarea className="w-full bg-white border border-slate-200 rounded-2xl p-4 text-xs min-h-[250px] focus:ring-2 focus:ring-rose-500 outline-none transition-all" value={currentRpm?.kegiatanPenutup || ''} placeholder="Pertemuan 1: Langkah refleksi...\n\nPertemuan 2: dst..." onChange={e => updateRPM(isEditing!, 'kegiatanPenutup', e.target.value)} /></div>
                     </div>
-                  )}
-                </div>
-              </div>
+                  </div>
+
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-6 bg-slate-800 rounded-full"></div>
+                        <h4 className="font-black text-slate-800 uppercase text-xs tracking-widest">3. Strategi Asesmen (Rubrik Awal, Proses & Akhir)</h4>
+                      </div>
+                      <button onClick={() => handleGenerateAsesmenAI(isEditing!)} disabled={isLoadingAsesmenAI} className="flex items-center gap-2 bg-indigo-600 text-white px-8 py-3 rounded-2xl text-xs font-black shadow-xl hover:bg-indigo-700">
+                        {isLoadingAsesmenAI ? <Loader2 size={16} className="animate-spin" /> : <ClipboardList size={16}/>} 
+                        SUSUN 3 RUBRIK (AI)
+                      </button>
+                    </div>
+                    <div className="bg-white p-8 rounded-[40px] border border-slate-200 min-h-[200px]">
+                      {parseAsesmen(currentRpm?.asesmenTeknik || "") ? (
+                        renderAsesmenTable(parseAsesmen(currentRpm?.asesmenTeknik || "")!)
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-20 text-slate-400 gap-4">
+                          {isLoadingAsesmenAI ? <Loader2 size={48} className="animate-spin text-indigo-600" /> : <FileText size={48} className="opacity-20"/>}
+                          <p className="text-xs font-black uppercase tracking-widest text-center">
+                            {isLoadingAsesmenAI ? "AI sedang menyusun rubrik..." : "Klik Susun 3 Rubrik untuk menghasilkan tabel penilaian lengkap"}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="p-20 text-center"><Loader2 className="animate-spin inline-block" /></div>
+              )}
             </div>
             <div className="p-6 bg-white border-t border-slate-100 flex justify-end gap-3 shrink-0"><button onClick={() => setIsEditing(null)} className="bg-slate-900 text-white px-12 py-3 rounded-2xl text-[11px] font-black shadow-lg">SIMPAN & SELESAI</button></div>
           </div>

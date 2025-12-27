@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { UploadedFile } from "../types";
 
@@ -13,8 +12,9 @@ const getApiKey = (customKey?: string) => {
   return key;
 };
 
+// Menggunakan gemini-3-flash-preview untuk semua tugas agar menghindari limit kuota 429 pada model Pro
 const DEFAULT_MODEL = 'gemini-3-flash-preview';
-const COMPLEX_MODEL = 'gemini-3-pro-preview';
+const COMPLEX_MODEL = 'gemini-3-flash-preview'; 
 
 export const startAIChat = async (systemInstruction: string, apiKey?: string) => {
   const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
@@ -112,14 +112,15 @@ export const generateRPMContent = async (tp: string, materi: string, kelas: stri
   const prompt = `Susun langkah pembelajaran mendalam 3M (Memahami, Mengaplikasi, Merefleksi) untuk SD Kelas ${kelas}.
   TP: "${tp}" | Materi: "${materi}" | Model: "${praktikPedagogis}" | Sesi: ${jumlahPertemuan} pertemuan.
   
-  INSTRUKSI KHUSUS FILOSOFI DEEP LEARNING:
-  Dalam narasi kegiatan, Anda WAJIB mengintegrasikan elemen berikut:
-  1. BERKESADARAN (Mindful): Siswa hadir utuh secara mental dan emosional.
-  2. BERMAKNA (Meaningful): Menghubungkan pelajaran dengan kehidupan nyata siswa.
-  3. MENGGEMBIRAKAN (Joyful): Menciptakan suasana belajar yang positif dan menyenangkan.
+  INSTRUKSI KRITIKAL (WAJIB):
+  Dalam setiap narasi kegiatan (Awal, Inti, Penutup), Anda WAJIB menyertakan elemen filosofis berikut secara eksplisit:
+  1. BERKESADARAN (Mindful): Narasi harus menyebutkan aktivitas yang membangun kesadaran penuh atau kehadiran utuh siswa.
+  2. BERMAKNA (Meaningful): Narasi harus menyebutkan keterhubungan materi dengan dunia nyata siswa.
+  3. MENGGEMBIRAKAN (Joyful): Narasi harus menyebutkan suasana yang memicu emosi positif atau kegembiraan.
 
-  WAJIB menyertakan kata-kata 'Berkesadaran', 'Bermakna', dan 'Menggembirakan' di dalam langkah-langkah kegiatan secara natural.
-  Jika pertemuan > 1, tuliskan "Pertemuan 1:", "Pertemuan 2:", dst di awal baris pada setiap kegiatan.`;
+  SANGAT PENTING: Anda HARUS secara harfiah menulis kata 'Berkesadaran', 'Bermakna', dan 'Menggembirakan' di dalam isi teks narasi kegiatan untuk menunjukkan penerapan Deep Learning.
+  
+  PENTING: Jika pertemuan > 1, tuliskan "Pertemuan 1:", "Pertemuan 2:", dst di awal setiap blok kegiatan.`;
   
   const response = await ai.models.generateContent({
     model: COMPLEX_MODEL,
@@ -146,10 +147,7 @@ export const generateRPMContent = async (tp: string, materi: string, kelas: stri
 export const generateAssessmentDetails = async (tp: string, materi: string, kelas: string, apiKey?: string) => {
   const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
   const prompt = `Susun 3 rubrik asesmen lengkap (AWAL, PROSES, AKHIR) untuk SD Kelas ${kelas}. 
-  TP: "${tp}"
-  Materi: "${materi}"
-  
-  Setiap rubrik wajib memiliki kategori, teknik, bentuk, instruksi guru, dan rubrikDetail (aspek dan level 1-4). 
+  TP: "${tp}" | Materi: "${materi}"
   Asesmen awal fokus pada Kesiapan, Proses fokus pada Formatif, Akhir fokus pada Sumatif.`;
 
   const response = await ai.models.generateContent({
