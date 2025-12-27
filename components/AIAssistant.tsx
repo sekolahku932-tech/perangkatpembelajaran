@@ -5,7 +5,7 @@ import {
   User as UserIcon, Bot as BotIcon, Loader2 as LoaderIcon, 
   Maximize2 as MaxIcon, Minimize2 as MinIcon, AlertCircle as AlertIcon, 
   Settings as SettingsIcon, AlertTriangle as WarningIcon, Terminal as TermIcon, 
-  ExternalLink as LinkIcon 
+  ExternalLink as LinkIcon, RefreshCw as RetryIcon
 } from 'lucide-react';
 import { startAIChat } from '../services/geminiService';
 import { User as UserType } from '../types';
@@ -14,6 +14,7 @@ interface Message {
   role: 'user' | 'model';
   text: string;
   isError?: boolean;
+  isRetrying?: boolean;
   errorType?: 'AUTH' | 'MODEL' | 'QUOTA' | 'GENERIC';
   rawError?: string;
 }
@@ -132,7 +133,12 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
                   </div>
                   <div className="space-y-3 flex-1 min-w-0">
                     <div className={`p-4 rounded-2xl text-[11px] leading-relaxed shadow-sm ${m.role === 'user' ? 'bg-indigo-600 text-white rounded-tr-none' : m.isError ? 'bg-red-50 text-red-700 border border-red-100 rounded-tl-none' : 'bg-white text-slate-800 rounded-tl-none border border-slate-100'}`}>
-                      {m.text || (isLoading && i === messages.length - 1 ? <LoaderIcon size={14} className="animate-spin opacity-50"/> : '')}
+                      {m.text || (isLoading && i === messages.length - 1 ? (
+                        <div className="flex items-center gap-2">
+                           <LoaderIcon size={14} className="animate-spin opacity-50"/>
+                           <span className="text-[9px] font-black uppercase tracking-tighter animate-pulse">Berpikir...</span>
+                        </div>
+                      ) : '')}
                     </div>
                     
                     {m.isError && (
@@ -154,11 +160,17 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
                              <div className="bg-white/5 p-3 rounded-xl border border-white/10">
                                 <p className="text-[10px] font-bold mb-2">Solusi:</p>
                                 <ul className="text-[9px] list-disc pl-4 space-y-2 text-slate-400">
-                                  <li>Tunggu sekitar <b>1-2 menit</b> lalu coba kirim pesan lagi.</li>
-                                  <li>Google membatasi jumlah pesan untuk akun gratis demi stabilitas server.</li>
-                                  <li>Gunakan model Flash yang lebih ringan untuk mempercepat respon.</li>
+                                  <li>Sistem otomatis mencoba lagi jika limit tercapai.</li>
+                                  <li>Jika tetap gagal, tunggu <b>2 menit</b> lalu kirim pesan lagi.</li>
+                                  <li>Google membatasi akun gratis untuk menjaga kestabilan server.</li>
                                 </ul>
                              </div>
+                             <button 
+                              onClick={() => handleSendMessage()}
+                              className="w-full bg-indigo-600 py-2.5 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all shadow-lg"
+                             >
+                              <RetryIcon size={12}/> COBA LAGI SEKARANG
+                             </button>
                              <a 
                               href="https://aistudio.google.com/app/usage" 
                               target="_blank"
@@ -206,7 +218,10 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
                 {isLoading ? <LoaderIcon size={16} className="animate-spin"/> : <SendIcon size={16}/>}
               </button>
             </div>
-            <p className="text-[8px] text-center text-slate-400 mt-3 font-bold uppercase tracking-widest">Model: Gemini Flash Lite</p>
+            <p className="text-[8px] text-center text-slate-400 mt-3 font-bold uppercase tracking-widest flex items-center justify-center gap-2">
+              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
+              Engine: Gemini 3 Flash (Optimized)
+            </p>
           </div>
         </>
       )}
