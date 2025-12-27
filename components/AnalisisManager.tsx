@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Fase, Kelas, CapaianPembelajaran, AnalisisCP, MATA_PELAJARAN, SchoolSettings, User } from '../types';
-import { Plus, Trash2, Sparkles, Loader2, Eye, EyeOff, BrainCircuit, Cloud, AlertTriangle, X, FileDown, Printer, Lock, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Sparkles, Loader2, Eye, EyeOff, BrainCircuit, Cloud, AlertTriangle, X, FileDown, Printer, Lock, AlertCircle, ListChecks, Info, BookOpen } from 'lucide-react';
 import { analyzeCPToTP } from '../services/geminiService';
 import { db, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from '../services/firebase';
 
@@ -135,19 +135,23 @@ const AnalisisManager: React.FC<AnalisisManagerProps> = ({ user }) => {
         <thead>
           <tr class="bg-gray">
             <th style="width:30px">NO</th>
+            <th>CAPAIAN PEMBELAJARAN</th>
             <th>MATERI POKOK</th>
-            <th>TUJUAN PEMBELAJARAN (PECAHAN CP)</th>
+            <th>TUJUAN PEMBELAJARAN</th>
           </tr>
         </thead>
         <tbody>
-          ${filteredAnalisis.map((item, idx) => `
-            <tr>
-              <td class="text-center">${idx + 1}</td>
-              <td class="font-bold">${item.materi}</td>
-              <td style="text-align: justify;">${item.tujuanPembelajaran}</td>
-            </tr>
-          `).join('')}
-          ${filteredAnalisis.length === 0 ? '<tr><td colspan="3" class="text-center italic">Data kosong</td></tr>' : ''}
+          ${filteredAnalisis.map((item, idx) => {
+            const cpDesc = cps.find(c => c.id === item.cpId)?.deskripsi || '-';
+            return `
+              <tr>
+                <td class="text-center">${idx + 1}</td>
+                <td style="text-align: justify;">${cpDesc}</td>
+                <td class="font-bold">${item.materi}</td>
+                <td style="text-align: justify;">${item.tujuanPembelajaran}</td>
+              </tr>
+            `;
+          }).join('')}
         </tbody>
       </table>
     `;
@@ -188,20 +192,18 @@ const AnalisisManager: React.FC<AnalisisManagerProps> = ({ user }) => {
     }
   };
 
-  const availableMapel = user.role === 'admin' ? MATA_PELAJARAN : user.mapelDiampu;
-
   if (isPrintMode) {
     return (
       <div className="bg-white p-12 min-h-screen text-slate-900 font-serif">
         <div className="no-print fixed top-6 right-6 flex gap-3 z-[300]">
           <button onClick={() => setIsPrintMode(false)} className="bg-slate-800 text-white px-6 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 shadow-2xl hover:bg-black transition-all">
-            <EyeOff size={16}/> KEMBALI
+            <EyeOff size={16} /> KEMBALI
           </button>
           <button onClick={handleExportWord} className="bg-blue-600 text-white px-6 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 shadow-2xl hover:bg-blue-700 transition-all">
-            <FileDown size={16}/> WORD
+            <FileDown size={16} /> WORD
           </button>
           <button onClick={handlePrint} className="bg-rose-600 text-white px-6 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 shadow-2xl hover:bg-rose-700 transition-all">
-            <Printer size={16}/> CETAK PDF
+            <Printer size={16} /> CETAK PDF
           </button>
         </div>
 
@@ -210,30 +212,36 @@ const AnalisisManager: React.FC<AnalisisManagerProps> = ({ user }) => {
             <h1 className="text-2xl font-black uppercase border-b-4 border-black pb-2 inline-block tracking-tight text-slate-900">Analisis Capaian Pembelajaran</h1>
             <h2 className="text-xl font-bold mt-3 uppercase text-slate-800">{settings.schoolName}</h2>
             <div className="flex justify-center gap-10 mt-6 text-xs font-black uppercase tracking-widest text-slate-600 font-sans">
-              <span>MATA PELAJARAN: {filterMapel}</span>
+              <span>MAPEL: {filterMapel}</span>
               <span>KELAS / FASE: {filterKelas} / {filterFase.replace('Fase ', '')}</span>
+              <span>TAHUN: {activeYear}</span>
             </div>
           </div>
 
-          <table className="w-full border-collapse border-2 border-black text-xs">
+          <table className="w-full border-collapse border-2 border-black text-[10px]">
             <thead>
-              <tr className="bg-slate-50 h-12 uppercase font-black text-center">
-                <th className="border-2 border-black w-12">NO</th>
-                <th className="border-2 border-black w-48 text-left px-4">MATERI POKOK</th>
-                <th className="border-2 border-black text-left px-4">TUJUAN PEMBELAJARAN (PECAHAN CP)</th>
+              <tr className="bg-slate-100 h-12 uppercase font-black text-center">
+                <th className="border-2 border-black w-10">NO</th>
+                <th className="border-2 border-black px-4 py-2 text-left uppercase w-1/4">CAPAIAN PEMBELAJARAN</th>
+                <th className="border-2 border-black px-4 py-2 text-left uppercase w-1/4">MATERI POKOK</th>
+                <th className="border-2 border-black px-4 py-2 text-left uppercase">TUJUAN PEMBELAJARAN</th>
               </tr>
             </thead>
             <tbody>
               {filteredAnalisis.length === 0 ? (
-                <tr><td colSpan={3} className="border-2 border-black p-10 text-center italic text-slate-400">Belum ada data analisis CP-TP.</td></tr>
+                <tr><td colSpan={4} className="border-2 border-black p-10 text-center italic text-slate-400">Belum ada data analisis CP-TP.</td></tr>
               ) : (
-                filteredAnalisis.map((item, idx) => (
-                  <tr key={item.id} className="break-inside-avoid">
-                    <td className="border-2 border-black p-4 text-center font-bold">{idx + 1}</td>
-                    <td className="border-2 border-black p-4 font-black uppercase leading-tight">{item.materi}</td>
-                    <td className="border-2 border-black p-4 leading-relaxed text-justify">{item.tujuanPembelajaran}</td>
-                  </tr>
-                ))
+                filteredAnalisis.map((item, idx) => {
+                  const cp = cps.find(c => c.id === item.cpId);
+                  return (
+                    <tr key={item.id} className="break-inside-avoid">
+                      <td className="border-2 border-black p-3 text-center font-bold">{idx + 1}</td>
+                      <td className="border-2 border-black p-3 leading-relaxed text-justify italic">{cp?.deskripsi || '-'}</td>
+                      <td className="border-2 border-black p-3 font-black uppercase leading-tight">{item.materi}</td>
+                      <td className="border-2 border-black p-3 leading-relaxed text-justify">{item.tujuanPembelajaran}</td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -243,7 +251,7 @@ const AnalisisManager: React.FC<AnalisisManagerProps> = ({ user }) => {
                 <p>Mengetahui,</p> <p>Kepala Sekolah</p> <div className="h-24"></div> <p className="border-b border-black inline-block min-w-[200px]">{settings.principalName}</p> <p className="no-underline mt-1 font-normal">NIP. {settings.principalNip}</p>
              </div>
              <div className="text-center w-72">
-                <p>Bilato, {new Date().toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p> <p>Guru Mata Pelajaran</p> <div className="h-24"></div> <p className="border-b border-black inline-block min-w-[200px]">{user?.name || '[Nama Guru]'}</p> <p className="no-underline mt-1 font-normal">NIP. {user?.nip || '...................'}</p>
+                <p>Bilato, {new Date().toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p> <p>Guru Kelas/Mapel</p> <div className="h-24"></div> <p className="border-b border-black inline-block min-w-[200px]">{user?.name || '[Nama Guru]'}</p> <p className="no-underline mt-1 font-normal">NIP. {user?.nip || '...................'}</p>
              </div>
           </div>
         </div>
@@ -269,73 +277,104 @@ const AnalisisManager: React.FC<AnalisisManagerProps> = ({ user }) => {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50 p-6 rounded-[24px] border border-slate-100">
           <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 flex items-center gap-1">Fase {isClassLocked && <Lock size={10} className="text-amber-500" />}</label>
+            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest flex items-center gap-1">Fase {isClassLocked && <Lock size={10} className="text-amber-500" />}</label>
             <select className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none disabled:bg-slate-100" value={filterFase} disabled={isClassLocked} onChange={(e) => setFilterFase(e.target.value as Fase)}>
               {Object.values(Fase).map(f => <option key={f} value={f}>{f}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 flex items-center gap-1">Pilih Kelas</label>
+            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest flex items-center gap-1">Pilih Kelas</label>
             <select className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none disabled:bg-slate-100" value={filterKelas} disabled={isClassLocked} onChange={(e) => handleKelasChange(e.target.value as Kelas)}>
               {['1','2','3','4','5','6'].map(k => <option key={k} value={k}>Kelas {k}</option>)}
             </select>
           </div>
-          <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Mapel</label><select className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none" value={filterMapel} onChange={(e) => setFilterMapel(e.target.value)}>{availableMapel.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
+          <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Mapel</label><select className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none" value={filterMapel} onChange={(e) => setFilterMapel(e.target.value)}>{(user.role === 'admin' ? MATA_PELAJARAN : user.mapelDiampu).map(m => <option key={m} value={m}>{m}</option>)}</select></div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
         <div className="xl:col-span-1 bg-white rounded-[32px] shadow-sm border border-slate-200 overflow-hidden">
-          <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center"><h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Daftar CP Sekolah</h3></div>
-          <div className="divide-y divide-slate-100 overflow-y-auto max-h-[600px] custom-scrollbar">
-            {filteredCps.length === 0 ? (
-              <div className="p-10 text-center text-slate-400 italic text-sm">Tidak ada CP untuk filter ini. Sila hubungi admin.</div>
+          <div className="p-6 bg-slate-900 text-white flex items-center gap-3">
+             <Sparkles size={20} className="text-emerald-400"/>
+             <h3 className="text-xs font-black uppercase tracking-widest">CP Untuk Dianalisis</h3>
+          </div>
+          <div className="p-6 space-y-4 max-h-[600px] overflow-y-auto no-scrollbar">
+            {loading ? (
+              <div className="py-20 text-center"><Loader2 className="animate-spin inline-block text-slate-300" size={32}/></div>
+            ) : filteredCps.length === 0 ? (
+              <div className="p-10 text-center border-2 border-dashed border-slate-100 rounded-2xl">
+                 <AlertCircle size={32} className="mx-auto text-slate-200 mb-2"/>
+                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">Belum ada data CP.</p>
+              </div>
             ) : filteredCps.map(cp => (
-              <div key={cp.id} className="p-6 hover:bg-slate-50 transition-colors group">
-                <div className="flex justify-between items-start gap-4 mb-3">
-                  <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-[10px] font-black">{cp.kode}</span>
-                  <button onClick={() => handleAnalyze(cp)} disabled={isAnalyzing} className="bg-emerald-600 text-white px-4 py-2 rounded-xl text-[10px] font-black flex items-center gap-2 shadow-lg shadow-emerald-100 hover:bg-emerald-700 active:scale-95 transition-all disabled:opacity-50">
-                    {isAnalyzing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />} ANALISIS AI
-                  </button>
+              <div key={cp.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-4">
+                <div className="flex justify-between items-start gap-2">
+                  <span className="bg-white border border-slate-200 px-2 py-1 rounded text-[9px] font-black text-slate-500 uppercase">{cp.kode}</span>
+                  <h4 className="text-[10px] font-black text-slate-800 uppercase text-right leading-tight">{cp.elemen}</h4>
                 </div>
-                <h4 className="font-black text-slate-800 text-sm uppercase mb-2">{cp.elemen}</h4>
-                <p className="text-xs text-slate-500 leading-relaxed italic line-clamp-3">{cp.deskripsi}</p>
+                <p className="text-[11px] leading-relaxed text-slate-600 line-clamp-4 italic">"{cp.deskripsi}"</p>
+                <button onClick={() => handleAnalyze(cp)} disabled={isAnalyzing} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black py-3 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-[10px] uppercase disabled:opacity-50 tracking-widest">
+                  {isAnalyzing ? <Loader2 size={14} className="animate-spin"/> : <Sparkles size={14}/>} ANALISIS DENGAN AI
+                </button>
               </div>
             ))}
           </div>
         </div>
 
-        <div className="xl:col-span-2 bg-white rounded-[32px] shadow-sm border border-slate-200 overflow-hidden flex flex-col">
-          <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center"><h3 className="text-xs font-black text-slate-500 uppercase tracking-widest">Hasil Pecahan TP Linier</h3></div>
-          <div className="flex-1 overflow-x-auto overflow-y-auto max-h-[600px] custom-scrollbar">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest h-12">
-                  <th className="px-6 py-2 w-16 text-center border-r border-white/5">No</th>
-                  <th className="px-6 py-2 w-48 border-r border-white/5">Materi Pokok</th>
-                  <th className="px-6 py-2">Tujuan Pembelajaran</th>
-                  <th className="px-6 py-2 w-16 text-center">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {loading ? (
-                  <tr><td colSpan={4} className="px-6 py-12 text-center"><Loader2 size={32} className="animate-spin text-emerald-600 inline-block"/><p className="text-xs font-bold text-slate-400 mt-2 uppercase tracking-widest">Menarik data cloud...</p></td></tr>
-                ) : filteredAnalisis.length === 0 ? (
-                  <tr><td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic font-bold">Belum ada pecahan TP. Klik tombol "ANALISIS AI" pada daftar CP untuk memulai.</td></tr>
-                ) : (
-                  filteredAnalisis.map((item, idx) => (
-                    <tr key={item.id} className="hover:bg-slate-50/50 group transition-colors align-top">
-                      <td className="px-6 py-6 text-center font-black text-slate-300 border-r border-slate-50">{idx + 1}</td>
-                      <td className="px-6 py-6 border-r border-slate-50 font-black text-[11px] uppercase text-slate-900">{item.materi}</td>
-                      <td className="px-6 py-6 border-r border-slate-50 text-[11px] font-medium text-slate-600 italic leading-relaxed">{item.tujuanPembelajaran}</td>
-                      <td className="px-6 py-6 text-center">
-                        <button onClick={() => deleteDoc(doc(db, "analisis", item.id))} className="p-2 text-slate-300 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16}/></button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+        <div className="xl:col-span-2">
+          <div className="bg-white rounded-[32px] shadow-sm border border-slate-200 overflow-hidden min-h-[500px]">
+            <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+               <div className="flex items-center gap-3">
+                 <ListChecks size={20} className="text-emerald-600"/>
+                 <h3 className="text-xs font-black uppercase tracking-widest text-slate-800">Daftar Hasil Analisis ({filteredAnalisis.length})</h3>
+               </div>
+               <div className="flex items-center gap-2 px-3 py-1 bg-white border border-slate-200 rounded-full text-[9px] font-black text-slate-400 uppercase">
+                 <Cloud size={10}/> Data Cloud Aktif
+               </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest h-12">
+                    <th className="px-6 py-2 w-16 text-center">No</th>
+                    <th className="px-6 py-2 w-48">Capaian Pembelajaran</th>
+                    <th className="px-6 py-2 w-48">Materi Pokok</th>
+                    <th className="px-6 py-2">Tujuan Pembelajaran</th>
+                    <th className="px-6 py-2 w-16 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredAnalisis.length === 0 ? (
+                    <tr><td colSpan={5} className="py-32 text-center text-slate-300 font-bold uppercase text-xs tracking-widest">Belum ada hasil analisis</td></tr>
+                  ) : filteredAnalisis.map((item, idx) => {
+                    const cp = cps.find(c => c.id === item.cpId);
+                    return (
+                      <tr key={item.id} className="group hover:bg-slate-50/50 transition-colors align-top">
+                        <td className="px-6 py-6 text-center font-black text-slate-300">{idx + 1}</td>
+                        <td className="px-6 py-6 text-[10px] text-slate-500 italic leading-relaxed">{cp?.deskripsi || '-'}</td>
+                        <td className="px-6 py-6 font-black text-[10px] text-slate-900 uppercase">
+                           <textarea className="w-full bg-emerald-50/50 border border-emerald-100 rounded-xl p-3 text-[10px] font-black text-emerald-800 uppercase resize-none h-20 outline-none focus:ring-2 focus:ring-emerald-500" value={item.materi} onChange={e => updateDoc(doc(db, "analisis", item.id), { materi: e.target.value })} />
+                        </td>
+                        <td className="px-6 py-6">
+                           <textarea className="w-full bg-transparent border-none focus:ring-0 text-sm font-medium text-slate-700 leading-relaxed resize-none p-0 h-24 scrollbar-none" value={item.tujuanPembelajaran} onChange={e => updateDoc(doc(db, "analisis", item.id), { tujuanPembelajaran: e.target.value })} />
+                        </td>
+                        <td className="px-6 py-6 text-center">
+                          <button onClick={() => deleteDoc(doc(db, "analisis", item.id))} className="p-2 text-slate-300 hover:text-red-600 transition-all opacity-0 group-hover:opacity-100"><Trash2 size={16}/></button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {filteredAnalisis.length > 0 && (
+               <div className="p-6 bg-slate-50 border-t border-slate-100 flex items-start gap-3">
+                 <Info size={16} className="text-emerald-600 shrink-0 mt-0.5"/>
+                 <p className="text-[10px] text-slate-400 font-medium italic leading-relaxed">
+                   *Hasil analisis ini akan muncul otomatis sebagai referensi saat Anda menyusun ATP, Prota, Promes, dan RPM.
+                 </p>
+               </div>
+            )}
           </div>
         </div>
       </div>
