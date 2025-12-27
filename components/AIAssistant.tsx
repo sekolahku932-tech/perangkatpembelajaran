@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, X, Send, User, Bot, Loader2, Maximize2, Minimize2, AlertCircle, Key, RefreshCw, Terminal } from 'lucide-react';
+import { Sparkles, X, Send, User, Bot, Loader2, Maximize2, Minimize2, AlertCircle, Key, Settings, AlertTriangle } from 'lucide-react';
 import { startAIChat } from '../services/geminiService';
 import { User as UserType } from '../types';
 
@@ -64,13 +64,13 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
       
       if (e.message === 'API_KEY_MISSING') {
         errorType = 'AUTH';
-        errorText = 'Kunci API Gemini belum terpasang di server Vercel Anda.';
+        errorText = 'Kunci API Gemini (API_KEY) tidak terdeteksi oleh sistem hosting (Netlify/Vercel).';
       } else if (e.message === 'MODEL_NOT_READY') {
         errorType = 'MODEL';
-        errorText = 'Model Gemini 3 belum aktif untuk kunci API Anda. Silakan coba aktifkan model di Google AI Studio atau hubungi admin.';
+        errorText = 'Model Gemini saat ini belum siap atau tidak tersedia untuk kunci API Anda.';
       } else if (e.message === 'QUOTA_EXCEEDED') {
         errorType = 'QUOTA';
-        errorText = 'Batas penggunaan API gratis Anda telah habis.';
+        errorText = 'Batas penggunaan API gratis Anda telah habis hari ini.';
       }
 
       setMessages(prev => [...prev, { role: 'model', text: errorText, isError: true, errorType }]);
@@ -92,7 +92,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
   }
 
   return (
-    <div className={`fixed bottom-6 right-6 w-full max-w-[400px] bg-white rounded-[32px] shadow-2xl border border-slate-200 overflow-hidden flex flex-col z-[200] transition-all ${isMinimized ? 'h-[72px]' : 'h-[600px] max-h-[80vh]'}`}>
+    <div className={`fixed bottom-6 right-6 w-full max-w-[420px] bg-white rounded-[32px] shadow-2xl border border-slate-200 overflow-hidden flex flex-col z-[200] transition-all ${isMinimized ? 'h-[72px]' : 'h-[600px] max-h-[85vh]'}`}>
       <div className="p-5 bg-slate-900 text-white flex justify-between items-center shrink-0">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-indigo-500 rounded-xl shadow-lg"><Sparkles size={18} /></div>
@@ -112,7 +112,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
           <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50 no-scrollbar">
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
-                <div className={`flex gap-3 max-w-[85%] ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                <div className={`flex gap-3 max-w-[90%] ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                   <div className={`w-8 h-8 rounded-xl shrink-0 flex items-center justify-center shadow-sm ${m.role === 'user' ? 'bg-indigo-600 text-white' : m.isError ? 'bg-red-100 text-red-600' : 'bg-white border border-slate-200'}`}>
                     {m.role === 'user' ? <User size={16}/> : m.isError ? <AlertCircle size={16}/> : <Bot size={16}/>}
                   </div>
@@ -121,19 +121,29 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
                       {m.text || (isLoading && i === messages.length - 1 ? <Loader2 size={14} className="animate-spin opacity-50"/> : '')}
                     </div>
                     {m.isError && m.errorType === 'AUTH' && (
-                      <div className="bg-slate-900 text-white p-5 rounded-2xl space-y-3 shadow-xl border border-white/10 animate-in zoom-in-95">
-                        <div className="flex items-center gap-2 text-indigo-400 mb-2">
-                           <Terminal size={14}/>
-                           <span className="text-[10px] font-black uppercase tracking-widest">Panduan Perbaikan</span>
+                      <div className="bg-slate-900 text-white p-5 rounded-2xl space-y-4 shadow-xl border border-white/10 animate-in zoom-in-95">
+                        <div className="flex items-center gap-2 text-rose-400">
+                           <AlertTriangle size={16}/>
+                           <span className="text-[10px] font-black uppercase tracking-widest">Solusi Perbaikan</span>
                         </div>
-                        <p className="text-[10px] leading-relaxed">Untuk mengaktifkan AI, Anda harus memasukkan kunci API di Vercel:</p>
-                        <ol className="text-[9px] space-y-1 text-slate-300 font-medium list-decimal pl-4">
-                          <li>Buka Dashboard <b>Vercel Project</b> Anda.</li>
-                          <li>Klik tab <b>Settings</b> &gt; <b>Environment Variables</b>.</li>
-                          <li>Tambah variable: Name: <code className="bg-white/10 px-1 rounded text-white">API_KEY</code></li>
-                          <li>Value: (Tempel API Key Anda dari Google AI Studio).</li>
-                          <li>Klik Save & lakukan <b>Redeploy</b> aplikasi.</li>
-                        </ol>
+                        <p className="text-[10px] leading-relaxed text-slate-300">Konfigurasi server hosting Anda bermasalah. Gunakan solusi input manual:</p>
+                        <div className="space-y-3">
+                           <div className="bg-white/5 p-3 rounded-xl border border-white/10">
+                              <p className="text-[10px] font-bold mb-1">Cara Hubungkan Kunci API:</p>
+                              <ol className="text-[9px] list-decimal pl-4 space-y-1 text-slate-400">
+                                <li>Dapatkan Kunci di <b>AI Studio</b>.</li>
+                                <li>Masuk ke menu <b>PENGATURAN</b> di aplikasi ini.</li>
+                                <li>Tempel Kunci di bagian <b>KONFIGURASI AI</b>.</li>
+                                <li>Klik <b>SIMPAN</b> & AI akan langsung aktif!</li>
+                              </ol>
+                           </div>
+                           <button 
+                            onClick={() => { setIsOpen(false); /* Trigger navigation in parent if possible or just guide user */ }}
+                            className="w-full bg-indigo-600 py-2 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all"
+                           >
+                            <Settings size={12}/> KE MENU PENGATURAN
+                           </button>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -161,7 +171,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
                 {isLoading ? <Loader2 size={16} className="animate-spin"/> : <Send size={16}/>}
               </button>
             </div>
-            <p className="text-[8px] text-center text-slate-400 mt-3 font-bold uppercase tracking-widest">Model: Gemini 3 Flash Assistant</p>
+            <p className="text-[8px] text-center text-slate-400 mt-3 font-bold uppercase tracking-widest">Model: Gemini Flash Asst.</p>
           </div>
         </>
       )}

@@ -23,7 +23,8 @@ import EvaluasiManager from './components/EvaluasiManager';
 import AIAssistant from './components/AIAssistant';
 import LoginPage from './components/LoginPage';
 import { User } from './types';
-import { auth, db, onAuthStateChanged, signOut, doc, getDoc } from './services/firebase';
+import { auth, db, onAuthStateChanged, signOut, doc, getDoc, onSnapshot } from './services/firebase';
+import { setGeminiKey } from './services/geminiService';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -31,6 +32,19 @@ const App: React.FC = () => {
   const [activeMenu, setActiveMenu] = useState<'DASHBOARD' | 'CP' | 'ANALISIS' | 'ATP' | 'SETTING' | 'USER' | 'EFEKTIF' | 'PROTA' | 'PROMES' | 'RPM' | 'LKPD' | 'ASESMEN_SUMATIF' | 'EVALUASI' | 'JURNAL'>('DASHBOARD');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  // Ambil Kunci AI dari Cloud Database saat App dibuka
+  useEffect(() => {
+    const unsubAi = onSnapshot(doc(db, "settings", "ai_config"), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data && data.key) {
+          setGeminiKey(data.key);
+        }
+      }
+    });
+    return () => unsubAi();
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -100,7 +114,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex overflow-hidden">
-      {/* AI Assistant Button & Widget */}
       <AIAssistant user={user} />
 
       {showLogoutConfirm && (

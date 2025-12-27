@@ -12,6 +12,10 @@
     <script>
         // Polyfill untuk mendukung process.env di browser tanpa bundler
         window.process = window.process || { env: {} };
+        // Deteksi jika API_KEY disuntikkan oleh platform (Vercel/Netlify)
+        if (!window.process.env.API_KEY) {
+            console.warn("Gemini API_KEY belum terdeteksi di window.process.env");
+        }
     </script>
     <style>
         body {
@@ -74,6 +78,15 @@
             .border {
                 border-color: #000 !important;
             }
+        }
+        
+        /* Custom scrollbar */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
         }
     </style>
 <script type="importmap">

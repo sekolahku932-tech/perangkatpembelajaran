@@ -2,41 +2,66 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 /**
- * Inisialisasi AI menggunakan API_KEY dari environment variable.
+ * Variabel internal untuk menyimpan kunci yang diambil dari Firebase atau LocalStorage
  */
+let dynamicApiKey: string | null = null;
+
+/**
+ * Fungsi untuk mengupdate kunci secara dinamis dari App.tsx (Firebase)
+ */
+export const setGeminiKey = (key: string) => {
+  if (key && key.trim() !== '') {
+    dynamicApiKey = key.trim();
+    console.log("AI Service: Kunci Cloud diaktifkan.");
+  }
+};
+
+const getApiKey = () => {
+  // 1. Prioritas Utama: Kunci dari Database (Firebase)
+  if (dynamicApiKey) return dynamicApiKey;
+
+  // 2. Prioritas Kedua: LocalStorage (Backup manual)
+  const storedKey = localStorage.getItem('GEMINI_API_KEY');
+  if (storedKey && storedKey.trim() !== '') return storedKey;
+
+  // 3. Prioritas Terakhir: Environment Variable
+  const envKey = process.env.API_KEY || (window as any).process?.env?.API_KEY;
+  if (envKey && envKey !== 'undefined' && envKey !== '') return envKey;
+
+  return null;
+};
+
 const getAI = () => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey || apiKey === 'undefined' || apiKey === '') {
+  const apiKey = getApiKey();
+  if (!apiKey) {
     throw new Error('API_KEY_MISSING');
   }
   return new GoogleGenAI({ apiKey });
 };
 
-/**
- * Menangani error dari Gemini API
- */
 const handleGeminiError = (error: any) => {
-  console.error("Gemini API Error:", error);
+  console.error("Gemini technical detail:", error);
   const msg = error.message || '';
   
-  if (msg.includes('API key not found') || msg.includes('API_KEY_INVALID')) {
+  if (msg.includes('API key not found') || msg.includes('invalid') || msg === 'API_KEY_MISSING') {
     throw new Error('API_KEY_MISSING');
   }
   if (msg.includes('Requested entity was not found')) {
-    // Error ini biasanya berarti model Gemini 3 belum di-whitelist untuk API Key Anda
     throw new Error('MODEL_NOT_READY');
   }
-  if (msg.includes('429')) {
+  if (msg.includes('429') || msg.includes('quota')) {
     throw new Error('QUOTA_EXCEEDED');
   }
   throw error;
 };
 
+const DEFAULT_MODEL = 'gemini-flash-latest';
+
 export const startAIChat = async (systemInstruction: string) => {
   try {
     const ai = getAI();
     return ai.chats.create({
-      model: 'gemini-3-flash-preview',
+      model: DEFAULT_MODEL,
       config: { systemInstruction, temperature: 0.7 },
     });
   } catch (error) {
@@ -48,7 +73,7 @@ export const analyzeCPToTP = async (cpContent: string, elemen: string, fase: str
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: DEFAULT_MODEL,
       contents: `Pecah CP menjadi materi dan TP linear untuk SD Kelas ${kelas}. Elemen: ${elemen}. CP: "${cpContent}"`,
       config: {
         responseMimeType: "application/json",
@@ -76,7 +101,7 @@ export const completeATPDetails = async (tp: string, materi: string, kelas: stri
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: DEFAULT_MODEL,
       contents: `Lengkapi ATP SD Kelas ${kelas}. Materi: ${materi}, TP: ${tp}`,
       config: {
         responseMimeType: "application/json",
@@ -105,7 +130,7 @@ export const recommendPedagogy = async (tp: string, alurAtp: string, materi: str
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: DEFAULT_MODEL,
       contents: `Rekomendasi model pembelajaran untuk TP: "${tp}" SD Kelas ${kelas}`,
       config: {
         responseMimeType: "application/json",
@@ -129,7 +154,7 @@ export const generateRPMContent = async (tp: string, materi: string, kelas: stri
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: DEFAULT_MODEL,
       contents: `Susun RPM SD Kelas ${kelas} (${jumlahPertemuan} sesi). Tujuan: ${tp}. Materi: ${materi}. Model: ${praktikPedagogis}. Gunakan format daftar bernomor vertikal.`,
       config: {
         responseMimeType: "application/json",
@@ -199,7 +224,7 @@ export const generateLKPDContent = async (rpm: any) => {
   try {
     const ai = getAI();
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
+      model: DEFAULT_MODEL,
       contents: `Susun LKPD untuk SD Kelas ${rpm.kelas}. Topik: ${rpm.materi}.`,
       config: {
         responseMimeType: "application/json",
