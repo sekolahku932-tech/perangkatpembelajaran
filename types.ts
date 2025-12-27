@@ -28,7 +28,7 @@ export interface User {
   nip: string;
   kelas: string;
   mapelDiampu: string[];
-  apiKey?: string; // Menyimpan kunci Gemini masing-masing guru
+  // FIX: API key must be obtained exclusively from process.env.API_KEY
 }
 
 export interface Siswa {
@@ -76,7 +76,7 @@ export interface JurnalItem {
   userName: string;
   tahunPelajaran: string;
   kelas: Kelas;
-  tanggal: string;
+  tanggal: string; // ISO date
   mataPelajaran: string;
   materi: string;
   detailKegiatan: string;
@@ -99,8 +99,8 @@ export interface KisiKisiItem {
   tujuanPembelajaran: string;
   indikatorSoal: string;
   jenis: 'Tes' | 'Non Tes';
-  bentukSoal: string;
-  stimulus: string;
+  bentukSoal: 'Pilihan Ganda' | 'Pilihan Ganda Kompleks' | 'Menjodohkan' | 'Isian' | 'Uraian';
+  stimulus: string; // Baru: Untuk wacana AKM
   soal: string;
   kunciJawaban: string;
   nomorSoal: number;
@@ -231,7 +231,6 @@ export interface RPMItem {
   dimensiProfil: string[];
   praktikPedagogis: string;
   kemitraan: string;
-  environment?: string;
   lingkunganBelajar: string;
   pemanfaatanDigital: string;
   kegiatanAwal: string;

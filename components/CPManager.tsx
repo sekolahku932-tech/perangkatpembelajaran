@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Fase, CapaianPembelajaran, MATA_PELAJARAN, SchoolSettings, User } from '../types';
-import { Plus, Edit2, Trash2, Save, X, Loader2, Cloud, AlertTriangle, Eye, EyeOff, Printer, FileDown, AlertCircle, Lock } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, Loader2, Cloud, AlertTriangle, Eye, EyeOff, Printer, FileDown, AlertCircle } from 'lucide-react';
 import { db, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from '../services/firebase';
 
 interface CPManagerProps {
@@ -32,15 +33,11 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
     principalNip: '-'
   });
 
-  // Logika penguncian fase untuk guru
-  const isClassLocked = user.role === 'guru' && (user.teacherType === 'kelas' || (!user.teacherType && user.kelas !== '-' && user.kelas !== 'Multikelas'));
-
   useEffect(() => {
     if (user.role === 'guru') {
       if (user.mapelDiampu && user.mapelDiampu.length > 0) {
         setFilterMapel(user.mapelDiampu[0]);
       }
-      // Set Fase otomatis berdasarkan kelas
       if (['1', '2'].includes(user.kelas)) setFilterFase(Fase.A);
       else if (['3', '4'].includes(user.kelas)) setFilterFase(Fase.B);
       else if (['5', '6'].includes(user.kelas)) setFilterFase(Fase.C);
@@ -303,10 +300,9 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 ml-1 flex items-center gap-1">Pilih Fase {isClassLocked && <Lock size={10} className="text-amber-500" />}</label>
+            <label className="block text-[10px] font-black text-slate-400 uppercase mb-1.5 ml-1">Pilih Fase</label>
             <select 
-              disabled={isClassLocked}
-              className="w-full border border-slate-200 rounded-xl p-3 text-sm font-bold bg-white outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-400" 
+              className="w-full border border-slate-200 rounded-xl p-3 text-sm font-bold bg-white outline-none focus:ring-2 focus:ring-blue-500" 
               value={filterFase} 
               onChange={(e) => setFilterFase(e.target.value as Fase)}
             >

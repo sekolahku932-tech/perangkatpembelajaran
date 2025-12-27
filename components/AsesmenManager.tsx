@@ -170,126 +170,6 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
     }
   };
 
-  const handleExportWord = () => {
-    const header = `
-      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-      <head><meta charset='utf-8'><title>Asesmen SDN 5 Bilato</title>
-      <style>
-        body { font-family: 'Times New Roman', serif; font-size: 11pt; }
-        .text-center { text-align: center; }
-        .text-justify { text-align: justify; }
-        .font-bold { font-weight: bold; }
-        .uppercase { text-transform: uppercase; }
-        table { border-collapse: collapse; width: 100%; border: 1px solid black; }
-        th, td { border: 1px solid black; padding: 5px; vertical-align: top; }
-        .kop { border-bottom: 4px double black; padding-bottom: 5px; margin-bottom: 15px; }
-        .kop h1 { font-size: 14pt; margin: 0; }
-        .kop h2 { font-size: 18pt; margin: 0; }
-        .kop p { font-size: 9pt; margin: 0; font-style: italic; }
-        .info-box { border: 1px solid black; padding: 10px; margin-bottom: 15px; }
-      </style>
-      </head><body>
-    `;
-    const footer = "</body></html>";
-    
-    let contentHtml = "";
-
-    if (activeTab === 'KISI_KISI') {
-      contentHtml = `
-        <div class="text-center">
-          <h2 class="uppercase">KISI-KISI ASESMEN SUMATIF</h2>
-          <h3 class="uppercase">${settings.schoolName}</h3>
-          <p>Tahun Pelajaran ${activeYear}</p>
-        </div>
-        <br/>
-        <div class="info-box">
-          <table style="border:none">
-            <tr style="border:none"><td style="border:none; width:100px">Mata Pelajaran</td><td style="border:none; width:10px">:</td><td style="border:none"><b>${mapel}</b></td></tr>
-            <tr style="border:none"><td style="border:none">Kelas / Fase</td><td style="border:none">:</td><td style="border:none">${kelas} / ${fase}</td></tr>
-            <tr style="border:none"><td style="border:none">Semester</td><td style="border:none">:</td><td style="border:none">${semester === '1' ? 'Ganjil' : 'Genap'}</td></tr>
-          </table>
-        </div>
-        <table>
-          <thead style="background-color:#f2f2f2">
-            <tr>
-              <th style="width:30px">NO</th>
-              <th style="width:120px">ELEMEN / CP</th>
-              <th style="width:150px">INDIKATOR SOAL</th>
-              <th>BUTIR SOAL</th>
-              <th style="width:50px">KUNCI</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${filteredKisikisi.map((item, idx) => `
-              <tr>
-                <td class="text-center">${item.nomorSoal}</td>
-                <td><b>${item.elemen}</b><br/><br/><i>${item.tujuanPembelajaran}</i></td>
-                <td>${item.indikatorSoal}</td>
-                <td>
-                  ${item.stimulus ? `<div style="background-color:#f9f9f9; padding:5px; margin-bottom:5px"><i>${item.stimulus.replace(/\n/g, '<br/>')}</i></div>` : ''}
-                  ${item.soal.replace(/\n/g, '<br/>')}
-                </td>
-                <td class="text-center"><b>${item.kunciJawaban}</b></td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      `;
-    } else {
-      contentHtml = `
-        <div class="kop text-center">
-          <h1>PEMERINTAH KABUPATEN GORONTALO</h1>
-          <h2>${settings.schoolName}</h2>
-          <p>${settings.address}</p>
-        </div>
-        <div class="text-center">
-          <h3 class="uppercase"><b>${namaAsesmen}</b></h3>
-          <h3 class="uppercase"><b>TAHUN PELAJARAN ${activeYear}</b></h3>
-        </div>
-        <br/>
-        <div style="border: 1px solid black; padding: 10px; margin-bottom: 20px;">
-          <table style="border:none">
-            <tr style="border:none">
-              <td style="border:none; width:120px">Mata Pelajaran</td><td style="border:none; width:10px">:</td><td style="border:none"><b>${mapel}</b></td>
-              <td style="border:none; width:120px">Hari / Tanggal</td><td style="border:none; width:10px">:</td><td style="border:none">...........................</td>
-            </tr>
-            <tr style="border:none">
-              <td style="border:none">Kelas / Fase</td><td style="border:none">:</td><td style="border:none">${kelas} / ${fase}</td>
-              <td style="border:none">Waktu</td><td style="border:none">:</td><td style="border:none">${waktuPengerjaan}</td>
-            </tr>
-            <tr style="border:none">
-              <td style="border:none">Semester</td><td style="border:none">:</td><td style="border:none">${semester === '1' ? 'Ganjil' : 'Genap'}</td>
-              <td style="border:none">Nama Siswa</td><td style="border:none">:</td><td style="border:none">...........................</td>
-            </tr>
-          </table>
-        </div>
-        <p><b>PETUNJUK: KERJAKAN SOAL DI BAWAH INI DENGAN TELITI!</b></p>
-        <br/>
-        ${filteredKisikisi.map((item) => `
-          <div style="margin-bottom: 20px; page-break-inside: avoid;">
-            <table style="border:none">
-              <tr style="border:none">
-                <td style="border:none; width:30px"><b>${item.nomorSoal}.</b></td>
-                <td style="border:none">
-                  ${item.stimulus ? `<div style="border: 1px solid #ccc; padding:10px; margin-bottom:10px; background-color:#f9f9f9"><i>${item.stimulus.replace(/\n/g, '<br/>')}</i></div>` : ''}
-                  <div class="text-justify">${item.soal.replace(/\n/g, '<br/>')}</div>
-                </td>
-              </tr>
-            </table>
-          </div>
-        `).join('')}
-      `;
-    }
-
-    const blob = new Blob(['\ufeff', header + contentHtml + footer], { type: 'application/msword' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${activeTab}_${mapel.replace(/ /g, '_')}_KLS${kelas}.doc`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
   const renderSoalContent = (content: string, isPrint = false) => {
     if (!content) return null;
     
@@ -442,11 +322,8 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
     return (
       <div className="bg-white p-12 min-h-screen text-slate-900 font-serif">
         <div className="no-print fixed top-6 right-6 flex gap-3 z-[300]">
-          <button onClick={() => setIsPrintMode(false)} className="bg-slate-800 text-white px-6 py-2 rounded-xl text-xs font-black flex items-center gap-2 shadow-2xl hover:bg-black transition-all">
+          <button onClick={() => setIsPrintMode(false)} className="bg-slate-800 text-white px-6 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 shadow-2xl hover:bg-black transition-all">
             <EyeOff size={16}/> KEMBALI
-          </button>
-          <button onClick={handleExportWord} className="bg-blue-600 text-white px-6 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 shadow-2xl hover:bg-blue-700 transition-all">
-            <FileDown size={16}/> WORD
           </button>
           <button onClick={handlePrint} className="bg-rose-600 text-white px-6 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 shadow-2xl hover:bg-rose-700 transition-all">
             <Printer size={16}/> CETAK PDF
@@ -574,9 +451,6 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
           <div className="flex gap-3">
             <button onClick={() => setShowAddAsesmenModal(true)} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition-all shadow-lg hover:bg-indigo-700">
               <Plus size={16}/> BUAT BARU
-            </button>
-            <button onClick={handleExportWord} className="bg-blue-600 text-white px-5 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition-all shadow-lg hover:bg-blue-700">
-              <FileDown size={16}/> UNDUH WORD
             </button>
             <button onClick={() => setIsPrintMode(true)} className="bg-slate-800 text-white px-5 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 transition-all shadow-lg hover:bg-black"><Printer size={16}/> PRATINJAU</button>
           </div>

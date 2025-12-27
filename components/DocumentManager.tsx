@@ -65,17 +65,21 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ user }) => {
     setIsAnalyzing(true);
 
     try {
-      // Injeksi API Key User
-      const response = await analyzeDocuments(files, currentInput, user.apiKey);
+      // Sesuai panduan: Menggunakan logic terpusat yang mengambil key dari process.env.API_KEY
+      const response = await analyzeDocuments(files, currentInput);
       const aiMsg: ChatMessage = { role: 'model', content: response, timestamp: new Date() };
       setChatHistory(prev => [...prev, aiMsg]);
     } catch (error: any) {
       console.error(error);
       let errMsg = "Maaf, terjadi kesalahan saat menganalisis.";
-      if (error.message === 'QUOTA_EXCEEDED') errMsg = "Kuota AI Anda saat ini sudah habis.";
-      if (error.message === 'INVALID_API_KEY') errMsg = "API Key Anda tidak valid. Hubungi Admin.";
+      if (error.message === 'QUOTA_EXCEEDED') errMsg = "Kuota AI sistem saat ini sudah habis. Silakan coba lagi besok.";
+      if (error.message === 'API_KEY_MISSING') errMsg = "Konfigurasi kunci API sistem tidak ditemukan.";
       
-      const errorMsg: ChatMessage = { role: 'model', content: errMsg, timestamp: new Date() };
+      const errorMsg: ChatMessage = { 
+        role: 'model', 
+        content: errMsg, 
+        timestamp: new Date() 
+      };
       setChatHistory(prev => [...prev, errorMsg]);
     } finally {
       setIsAnalyzing(false);
@@ -85,6 +89,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ user }) => {
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 animate-in fade-in duration-500">
+      {/* Sidebar Upload */}
       <div className="lg:col-span-1 space-y-6">
         <div className="bg-white p-6 rounded-[32px] shadow-sm border border-slate-200">
           <div className="flex items-center gap-3 mb-6">
@@ -92,13 +97,23 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ user }) => {
              <h3 className="font-black text-slate-800 uppercase text-xs tracking-widest">Unggah Bahan</h3>
           </div>
           
-          <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-all group">
+          <div 
+            onClick={() => fileInputRef.current?.click()}
+            className="border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/30 transition-all group"
+          >
             <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
                <ImageIcon size={24} className="text-slate-400 group-hover:text-indigo-500"/>
             </div>
             <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Klik untuk Memilih</p>
             <p className="text-[8px] text-slate-400 mt-2">PDF, JPG, PNG (Max 5MB)</p>
-            <input type="file" className="hidden" multiple ref={fileInputRef} onChange={handleFileUpload} accept="image/*,application/pdf" />
+            <input 
+              type="file" 
+              className="hidden" 
+              multiple 
+              ref={fileInputRef} 
+              onChange={handleFileUpload}
+              accept="image/*,application/pdf"
+            />
           </div>
           
           <div className="mt-8 space-y-3">
@@ -121,7 +136,9 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ user }) => {
                           <p className="text-[8px] text-slate-400 uppercase font-black">{formatSize(file.size)}</p>
                        </div>
                     </div>
-                    <button onClick={() => removeFile(file.id)} className="p-1.5 text-slate-300 hover:text-rose-600 transition-colors"><X size={14}/></button>
+                    <button onClick={() => removeFile(file.id)} className="p-1.5 text-slate-300 hover:text-rose-600 transition-colors">
+                       <X size={14}/>
+                    </button>
                   </div>
                 ))}
               </div>
@@ -132,33 +149,49 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ user }) => {
         <div className="bg-indigo-600 rounded-[32px] p-6 text-white shadow-xl shadow-indigo-100 relative overflow-hidden">
            <Cloud className="absolute -bottom-4 -right-4 opacity-20" size={80}/>
            <div className="relative z-10">
-              <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2"><Sparkles size={14}/> Info API</h4>
-              <p className="text-[10px] leading-relaxed font-medium opacity-90">
-                {user.apiKey ? "Analisis ini menggunakan API Key Kustom Anda." : "Analisis ini menggunakan API Key Utama Sekolah."}
-              </p>
+              <h4 className="text-xs font-black uppercase mb-3 flex items-center gap-2">
+                 <Sparkles size={14}/> Tips Analisis
+              </h4>
+              <div className="text-[10px] leading-relaxed font-medium opacity-90">
+                 Unggah file materi, lalu minta AI untuk:
+                 <ul className="mt-2 space-y-1 list-disc pl-4">
+                    <li>"Buatkan 10 soal pilihan ganda dari teks ini"</li>
+                    <li>"Analisis kesesuaian materi ini dengan kurikulum"</li>
+                    <li>"Rangkum materi ini jadi poin penting"</li>
+                 </ul>
+              </div>
               <div className="mt-4 p-2 bg-white/10 rounded-xl border border-white/10 text-[8px] font-black uppercase tracking-tighter flex items-center gap-2">
-                 <Key size={10}/> Security Mode: ON
+                 <Cloud size={10}/> Cloud Managed AI Aktif
               </div>
            </div>
         </div>
       </div>
 
+      {/* Chat Area */}
       <div className="lg:col-span-3 flex flex-col h-[75vh] bg-white rounded-[40px] shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-6 bg-slate-900 text-white flex justify-between items-center">
            <div className="flex items-center gap-3">
               <div className="p-2 bg-indigo-500 rounded-xl shadow-lg"><MessageSquare size={18}/></div>
               <div>
                  <h3 className="font-black text-xs uppercase tracking-widest leading-none">Diskusi Dokumen AI</h3>
-                 <p className="text-[8px] text-indigo-300 font-bold uppercase mt-1 tracking-tighter">User: {user.name}</p>
+                 <p className="text-[8px] text-indigo-300 font-bold uppercase mt-1 tracking-tighter">Login: {user.name}</p>
               </div>
            </div>
+           {files.length > 0 && (
+             <div className="flex items-center gap-2 px-3 py-1 bg-emerald-500/20 text-emerald-400 rounded-full text-[9px] font-black uppercase">
+                <CheckCircle2 size={10}/> {files.length} File Siap
+             </div>
+           )}
         </div>
 
         <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-slate-50 no-scrollbar">
           {chatHistory.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center opacity-30">
-              <div className="p-6 bg-white rounded-[40px] shadow-sm mb-6"><Bot size={64} className="text-slate-400"/></div>
-              <p className="text-sm font-black uppercase tracking-widest text-slate-500">Mulai Analisis</p>
+              <div className="p-6 bg-white rounded-[40px] shadow-sm mb-6">
+                 <Bot size={64} className="text-slate-400"/>
+              </div>
+              <p className="text-sm font-black uppercase tracking-widest text-slate-500">Mulai Analisis Dokumen</p>
+              <p className="text-xs font-medium max-w-xs mt-2">Unggah file di samping lalu ajukan pertanyaan atau instruksi di bawah.</p>
             </div>
           ) : (
             chatHistory.map((msg, idx) => (
@@ -167,8 +200,15 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ user }) => {
                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${msg.role === 'user' ? 'bg-slate-900 text-white' : 'bg-indigo-600 text-white'}`}>
                       {msg.role === 'user' ? <UserIcon size={20}/> : <Bot size={20}/>}
                    </div>
-                   <div className={`p-5 rounded-[2.5rem] text-[13px] leading-relaxed shadow-sm ${msg.role === 'user' ? 'bg-white text-slate-800 border border-slate-100 rounded-tr-none' : 'bg-indigo-600 text-white rounded-tl-none'}`}>
+                   <div className={`p-5 rounded-[2.5rem] text-[13px] leading-relaxed shadow-sm ${
+                     msg.role === 'user' 
+                       ? 'bg-white text-slate-800 rounded-tr-none border border-slate-100' 
+                       : 'bg-indigo-600 text-white rounded-tl-none font-medium'
+                   }`}>
                      <div className="whitespace-pre-wrap">{msg.content}</div>
+                     <p className={`text-[8px] font-black uppercase mt-3 tracking-widest opacity-40 ${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+                       {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                     </p>
                    </div>
                 </div>
               </div>
@@ -177,7 +217,9 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ user }) => {
           {isAnalyzing && (
             <div className="flex justify-start animate-pulse">
                <div className="flex gap-4">
-                  <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-500 flex items-center justify-center"><Loader2 size={20} className="animate-spin"/></div>
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-100 text-indigo-500 flex items-center justify-center">
+                     <Loader2 size={20} className="animate-spin"/>
+                  </div>
                   <div className="bg-white border border-slate-200 p-5 rounded-[2.5rem] rounded-tl-none">
                      <div className="flex gap-1">
                         <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce"></div>
@@ -193,8 +235,22 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ user }) => {
 
         <div className="p-6 bg-white border-t border-slate-100">
           <div className="relative flex items-center">
-            <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} placeholder={files.length === 0 ? "Unggah file dulu..." : "Tanya AI..."} disabled={files.length === 0 || isAnalyzing} className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl py-4 pl-6 pr-16 text-sm font-bold outline-none" />
-            <button onClick={handleSendMessage} disabled={!input.trim() || isAnalyzing || files.length === 0} className="absolute right-2 p-3 bg-indigo-600 text-white rounded-2xl hover:bg-indigo-700 transition-all shadow-lg active:scale-95 disabled:opacity-50"><Send size={18} /></button>
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+              placeholder={files.length === 0 ? "Unggah file dulu untuk bertanya..." : "Tulis instruksi/pertanyaan Anda di sini..."}
+              disabled={files.length === 0 || isAnalyzing}
+              className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl py-4 pl-6 pr-16 text-sm font-bold text-slate-800 focus:border-indigo-600 focus:bg-white transition-all outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+            <button
+              onClick={handleSendMessage}
+              disabled={!input.trim() || isAnalyzing || files.length === 0}
+              className="absolute right-2 p-3 bg-indigo-600 text-white rounded-2xl hover:bg-indigo-700 transition-all shadow-lg active:scale-95 disabled:opacity-50"
+            >
+              <Send size={18} />
+            </button>
           </div>
         </div>
       </div>
