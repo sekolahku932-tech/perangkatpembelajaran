@@ -3,11 +3,20 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { UploadedFile } from "../types";
 
 /**
- * Mendapatkan API Key eksklusif dari environment variable
+ * Variabel lokal untuk menyimpan API Key yang disuntikkan secara dinamis
+ */
+let dynamicApiKey: string | null = null;
+
+/**
+ * Mendapatkan API Key dengan urutan prioritas:
+ * 1. Kunci dinamis dari Pengaturan (Database)
+ * 2. Kunci dari Environment Variable (jika ada)
  */
 const getApiKey = () => {
-  const envKey = process.env.API_KEY;
-  return envKey || null;
+  if (dynamicApiKey && dynamicApiKey.trim() !== '') {
+    return dynamicApiKey;
+  }
+  return process.env.API_KEY || null;
 };
 
 // Menggunakan model Gemini 3 Flash sesuai instruksi untuk tugas teks dasar/cepat
@@ -273,6 +282,11 @@ export const generateButirSoal = async (item: any) => {
   });
 };
 
+/**
+ * Menyuntikkan API Key secara dinamis dari App.tsx (Firebase Listener)
+ */
 export const setGeminiKey = (key: string) => {
-  // Key sekarang disuntikkan secara dinamis dari database atau process.env
+  if (key && key.trim() !== '') {
+    dynamicApiKey = key.trim();
+  }
 };
