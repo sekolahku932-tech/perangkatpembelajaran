@@ -1,8 +1,17 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Sparkles, X, Send, User, Bot, Loader2, Maximize2, Minimize2, AlertCircle, Key, Settings, AlertTriangle, Terminal } from 'lucide-react';
+import { Sparkles, X, Send, User, Bot, Loader2, Maximize2, Minimize2, AlertCircle, Key, Settings, AlertTriangle, Terminal, ExternalLink } from 'lucide-center';
 import { startAIChat } from '../services/geminiService';
 import { User as UserType } from '../types';
+
+// Perbaikan import ikon jika lucide-center tidak tersedia, gunakan lucide-react seperti file lain
+import { 
+  Sparkles as SparklesIcon, X as XIcon, Send as SendIcon, 
+  User as UserIcon, Bot as BotIcon, Loader2 as LoaderIcon, 
+  Maximize2 as MaxIcon, Minimize2 as MinIcon, AlertCircle as AlertIcon, 
+  Settings as SettingsIcon, AlertTriangle as WarningIcon, Terminal as TermIcon, 
+  ExternalLink as LinkIcon 
+} from 'lucide-react';
 
 interface Message {
   role: 'user' | 'model';
@@ -62,17 +71,17 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
     } catch (e: any) {
       let errorText = 'Maaf, terjadi kesalahan teknis pada sistem AI.';
       let errorType: Message['errorType'] = 'GENERIC';
-      const rawMsg = e.message || 'Unknown Error';
+      const rawMsg = e.message || JSON.stringify(e);
       
       if (rawMsg === 'API_KEY_MISSING') {
         errorType = 'AUTH';
         errorText = 'Kunci API Gemini tidak terdeteksi. Silakan masukkan kunci di menu Pengaturan.';
-      } else if (rawMsg === 'MODEL_NOT_READY' || rawMsg.includes('404')) {
+      } else if (rawMsg === 'MODEL_NOT_READY') {
         errorType = 'MODEL';
-        errorText = 'Model Gemini tidak merespon atau tidak ditemukan. Mengalihkan ke model terbaru...';
+        errorText = 'Model Gemini tidak merespon. Silakan coba lagi dalam beberapa saat.';
       } else if (rawMsg === 'QUOTA_EXCEEDED') {
         errorType = 'QUOTA';
-        errorText = 'Batas penggunaan harian API gratis Anda telah habis.';
+        errorText = 'Batas kuota gratis API Google Anda telah tercapai untuk saat ini.';
       }
 
       setMessages(prev => [...prev, { 
@@ -94,7 +103,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
         onClick={() => setIsOpen(true)}
         className="fixed bottom-6 right-6 p-4 bg-indigo-600 text-white rounded-full shadow-2xl hover:bg-indigo-700 hover:scale-110 transition-all z-[100] group"
       >
-        <Sparkles className="group-hover:animate-pulse" size={24} />
+        <SparklesIcon className="group-hover:animate-pulse" size={24} />
       </button>
     );
   }
@@ -103,15 +112,15 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
     <div className={`fixed bottom-6 right-6 w-full max-w-[420px] bg-white rounded-[32px] shadow-2xl border border-slate-200 overflow-hidden flex flex-col z-[200] transition-all ${isMinimized ? 'h-[72px]' : 'h-[600px] max-h-[85vh]'}`}>
       <div className="p-5 bg-slate-900 text-white flex justify-between items-center shrink-0">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-indigo-500 rounded-xl shadow-lg"><Sparkles size={18} /></div>
+          <div className="p-2 bg-indigo-500 rounded-xl shadow-lg"><SparklesIcon size={18} /></div>
           <div>
             <h3 className="text-xs font-black uppercase tracking-widest leading-none">Asisten AI GPT</h3>
             <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">SDN 5 BILATO CLOUD</span>
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={() => setIsMinimized(!isMinimized)} className="p-2 hover:bg-white/10 rounded-lg">{isMinimized ? <Maximize2 size={16}/> : <Minimize2 size={16}/>}</button>
-          <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-white/10 rounded-lg"><X size={16} /></button>
+          <button onClick={() => setIsMinimized(!isMinimized)} className="p-2 hover:bg-white/10 rounded-lg">{isMinimized ? <MaxIcon size={16}/> : <MinIcon size={16}/>}</button>
+          <button onClick={() => setIsOpen(false)} className="p-2 hover:bg-white/10 rounded-lg"><XIcon size={16} /></button>
         </div>
       </div>
 
@@ -122,42 +131,54 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
               <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
                 <div className={`flex gap-3 max-w-[90%] ${m.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                   <div className={`w-8 h-8 rounded-xl shrink-0 flex items-center justify-center shadow-sm ${m.role === 'user' ? 'bg-indigo-600 text-white' : m.isError ? 'bg-red-100 text-red-600' : 'bg-white border border-slate-200'}`}>
-                    {m.role === 'user' ? <User size={16}/> : m.isError ? <AlertCircle size={16}/> : <Bot size={16}/>}
+                    {m.role === 'user' ? <UserIcon size={16}/> : m.isError ? <AlertIcon size={16}/> : <BotIcon size={16}/>}
                   </div>
                   <div className="space-y-3 flex-1 min-w-0">
                     <div className={`p-4 rounded-2xl text-[11px] leading-relaxed shadow-sm ${m.role === 'user' ? 'bg-indigo-600 text-white rounded-tr-none' : m.isError ? 'bg-red-50 text-red-700 border border-red-100 rounded-tl-none' : 'bg-white text-slate-800 rounded-tl-none border border-slate-100'}`}>
-                      {m.text || (isLoading && i === messages.length - 1 ? <Loader2 size={14} className="animate-spin opacity-50"/> : '')}
+                      {m.text || (isLoading && i === messages.length - 1 ? <LoaderIcon size={14} className="animate-spin opacity-50"/> : '')}
                     </div>
                     
                     {m.isError && (
                       <div className="bg-slate-900 text-white p-5 rounded-2xl space-y-4 shadow-xl border border-white/10 animate-in zoom-in-95">
                         <div className="flex items-center gap-2 text-rose-400">
-                           <AlertTriangle size={16}/>
+                           <WarningIcon size={16}/>
                            <span className="text-[10px] font-black uppercase tracking-widest">Detail Masalah</span>
                         </div>
                         
                         <div className="bg-black/40 p-3 rounded-xl border border-white/5 font-mono text-[9px] text-slate-400 break-all">
                           <div className="flex items-center gap-2 mb-1 text-emerald-400 font-bold">
-                            <Terminal size={10}/> RAW ERROR:
+                            <TermIcon size={10}/> RAW LOG:
                           </div>
                           {m.rawError}
                         </div>
 
-                        {m.errorType === 'AUTH' && (
+                        {m.errorType === 'QUOTA' && (
                           <div className="space-y-3">
                              <div className="bg-white/5 p-3 rounded-xl border border-white/10">
-                                <p className="text-[10px] font-bold mb-1">Cara Hubungkan:</p>
-                                <ol className="text-[9px] list-decimal pl-4 space-y-1 text-slate-400">
-                                  <li>Ke menu <b>PENGATURAN</b> aplikasi.</li>
-                                  <li>Tempel Kunci API di bagian <b>KONFIGURASI AI</b>.</li>
-                                  <li>Klik <b>SIMPAN</b>.</li>
-                                </ol>
+                                <p className="text-[10px] font-bold mb-2">Solusi:</p>
+                                <ul className="text-[9px] list-disc pl-4 space-y-2 text-slate-400">
+                                  <li>Tunggu sekitar <b>1-2 menit</b> lalu coba kirim pesan lagi.</li>
+                                  <li>Google membatasi jumlah pesan untuk akun gratis demi stabilitas server.</li>
+                                  <li>Gunakan model Flash yang lebih ringan untuk mempercepat respon.</li>
+                                </ul>
                              </div>
+                             <a 
+                              href="https://aistudio.google.com/app/usage" 
+                              target="_blank"
+                              className="w-full bg-slate-800 py-2 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 hover:bg-black transition-all border border-white/10"
+                             >
+                              <LinkIcon size={12}/> CEK PENGGUNAAN API
+                             </a>
+                          </div>
+                        )}
+
+                        {m.errorType === 'AUTH' && (
+                          <div className="space-y-3">
                              <button 
                               onClick={() => { setIsOpen(false); }}
                               className="w-full bg-indigo-600 py-2 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all"
                              >
-                              <Settings size={12}/> KE MENU PENGATURAN
+                              <SettingsIcon size={12}/> KE MENU PENGATURAN
                              </button>
                           </div>
                         )}
@@ -185,10 +206,10 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
                 disabled={!input.trim() || isLoading}
                 className="absolute right-2 p-2.5 bg-indigo-600 text-white rounded-xl shadow-lg hover:bg-indigo-700 disabled:opacity-50 transition-all active:scale-90"
               >
-                {isLoading ? <Loader2 size={16} className="animate-spin"/> : <Send size={16}/>}
+                {isLoading ? <LoaderIcon size={16} className="animate-spin"/> : <SendIcon size={16}/>}
               </button>
             </div>
-            <p className="text-[8px] text-center text-slate-400 mt-3 font-bold uppercase tracking-widest">Model: Gemini 3 Flash</p>
+            <p className="text-[8px] text-center text-slate-400 mt-3 font-bold uppercase tracking-widest">Model Optimal: Gemini 3 Flash</p>
           </div>
         </>
       )}

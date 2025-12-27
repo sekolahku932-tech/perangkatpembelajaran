@@ -29,10 +29,11 @@ const getApiKey = () => {
 };
 
 /**
- * Menggunakan model Gemini 3 Flash (Terbaru & Stabil)
+ * MENGGUNAKAN FLASH UNTUK SEMUA TUGAS
+ * Akun gratis memiliki kuota jauh lebih besar di model Flash (15 RPM) 
+ * dibandingkan model Pro (hanya 2 RPM). Ini solusi utama untuk error 429.
  */
 const DEFAULT_MODEL = 'gemini-3-flash-preview';
-const PRO_MODEL = 'gemini-3-pro-preview';
 
 const getAI = () => {
   const apiKey = getApiKey();
@@ -45,17 +46,22 @@ const getAI = () => {
 
 const handleGeminiError = (error: any) => {
   console.error("DEBUG Gemini Detail Error:", error);
-  const msg = error.message || '';
+  const errorStr = JSON.stringify(error).toLowerCase();
+  const msg = (error.message || '').toLowerCase();
   
-  if (msg.includes('API key not found') || msg.includes('invalid') || msg === 'API_KEY_MISSING') {
+  if (msg.includes('api key not found') || msg.includes('invalid') || msg === 'api_key_missing') {
     throw new Error('API_KEY_MISSING');
   }
-  if (msg.includes('Requested entity was not found') || msg.includes('model not found')) {
-    throw new Error('MODEL_NOT_READY');
-  }
-  if (msg.includes('429') || msg.includes('quota') || msg.includes('limit')) {
+  
+  // Deteksi Kuota Habis (Error 429)
+  if (errorStr.includes('429') || errorStr.includes('quota') || errorStr.includes('resource_exhausted') || errorStr.includes('limit')) {
     throw new Error('QUOTA_EXCEEDED');
   }
+
+  if (msg.includes('requested entity was not found') || msg.includes('model not found')) {
+    throw new Error('MODEL_NOT_READY');
+  }
+
   throw error;
 };
 
@@ -184,8 +190,9 @@ export const generateRPMContent = async (tp: string, materi: string, kelas: stri
 export const generateAssessmentDetails = async (tp: string, materi: string, kelas: string, narasiAwal: string, narasiProses: string, narasiAkhir: string) => {
   try {
     const ai = getAI();
+    // Mengalihkan ke FLASH agar tidak terkena limit 429 yang ketat di model PRO
     const response = await ai.models.generateContent({
-      model: PRO_MODEL,
+      model: DEFAULT_MODEL,
       contents: `Buat rubrik asesmen lengkap 3 BAGIAN (AWAL, PROSES, AKHIR) untuk TP: "${tp}" SD Kelas ${kelas}.`,
       config: {
         responseMimeType: "application/json",
@@ -218,17 +225,7 @@ export const generateAssessmentDetails = async (tp: string, materi: string, kela
     });
     return response.text?.trim() || "[]";
   } catch (error: any) {
-    try {
-      const aiFallback = getAI();
-      const responseFallback = await aiFallback.models.generateContent({
-        model: DEFAULT_MODEL,
-        contents: `Buat rubrik asesmen lengkap untuk TP: "${tp}" SD Kelas ${kelas}.`,
-        config: { responseMimeType: "application/json" }
-      });
-      return responseFallback.text || "[]";
-    } catch (e) {
-      return handleGeminiError(error);
-    }
+    return handleGeminiError(error);
   }
 };
 
