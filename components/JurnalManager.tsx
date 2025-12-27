@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Kelas, JurnalItem, MATA_PELAJARAN, SchoolSettings, AcademicYear, User, PromesItem, RPMItem, Fase } from '../types';
 import { 
@@ -66,6 +65,7 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
     });
 
     const unsubYears = onSnapshot(collection(db, "academic_years"), (snap) => {
+      /* FIX: Changed doc.data() to d.data() because doc is an imported helper function, while d is the individual DocumentSnapshot from the collection results. */
       const yearList = snap.docs.map(d => ({ id: d.id, ...d.data() })) as AcademicYear[];
       setYears(yearList);
       const active = yearList.find(y => y.isActive);
@@ -257,7 +257,9 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
 
     setIsLoadingAI(id);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const apiKey = user.apiKey || process.env.API_KEY;
+      const ai = new GoogleGenAI({ apiKey });
+      
       let prompt = `Bantu susun narasi jurnal harian guru SD Kelas ${item.kelas}. 
       Mapel: ${item.mataPelajaran}. Topik: ${item.materi}.`;
 
@@ -268,13 +270,11 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
         
         INSTRUKSI KHUSUS: 
         1. Rangkum data RPM di atas menjadi narasi jurnal yang padat dalam 1 paragraf untuk DETAIL_KEGIATAN.
-        2. Field PEDAGOGIK: HANYA sebutkan nama model/metode pembelajarannya saja secara singkat (contoh: '${matchingRpm.praktikPedagogis}'). 
-        SANGAT PENTING: Dilarang keras memberikan penjelasan, narasi, atau uraian tambahan pada field ini.`;
+        2. Field PEDAGOGIK: HANYA sebutkan nama model/metode pembelajarannya saja secara singkat (contoh: '${matchingRpm.praktikPedagogis}').`;
       } else {
         prompt += `\nINSTRUKSI:
         1. Buat narasi jurnal umum profesional untuk DETAIL_KEGIATAN.
-        2. Field PEDAGOGIK: HANYA sebutkan nama satu model/metode yang relevan (contoh: 'Ceramah Plus', 'Problem Based Learning', 'Project Based Learning', atau 'Inquiry Learning'). 
-        HANYA NAMANYA SAJA, dilarang memberikan uraian atau penjelasan tambahan.`;
+        2. Field PEDAGOGIK: HANYA sebutkan nama satu model/metode yang relevan (contoh: 'Ceramah Plus', 'Problem Based Learning').`;
       }
 
       prompt += `\nOutput JSON key: detail_kegiatan, pedagogik (HANYA NAMA MODEL/METODE SAJA).`;
@@ -293,8 +293,9 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
         text: matchingRpm ? 'AI menyusun narasi berdasarkan RPM Anda.' : 'AI menyusun narasi jurnal umum.', 
         type: 'success' 
       });
-    } catch (e) {
-      setMessage({ text: 'Gagal menghubungi AI.', type: 'error' });
+    } catch (e: any) {
+      console.error(e);
+      setMessage({ text: 'AI Gagal: ' + (e.message || 'Cek kuota'), type: 'error' });
     } finally {
       setIsLoadingAI(null);
     }
@@ -497,7 +498,7 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 relative pb-20">
+    <div className="space-y-6 pb-20 animate-in fade-in duration-500 relative pb-20">
       {message && (
         <div className={`fixed top-24 right-8 z-[100] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border transition-all animate-in slide-in-from-right ${
           message.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 

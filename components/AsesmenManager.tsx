@@ -113,7 +113,8 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
         elemen: '', cp: '', kompetensi: 'Pengetahuan dan Pemahaman', tpId: '', tujuanPembelajaran: '',
         indikatorSoal: '', jenis: 'Tes', bentukSoal: 'Pilihan Ganda', stimulus: '', soal: '', kunciJawaban: '', nomorSoal: nextNo
       });
-      if (customName) setNamaAsesmen(customName);
+      /* FIX: Use 'nameToUse' instead of undefined 'newName' to correctly update the assessment name state when a new row is added. */
+      if (customName) setNamaAsesmen(nameToUse);
     } catch (e) { console.error(e); }
   };
 
@@ -144,7 +145,7 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
     if (!item.tujuanPembelajaran) return;
     setAiLoadingMap(prev => ({ ...prev, [`ind-${item.id}`]: true }));
     try {
-      const indikator = await generateIndikatorSoal(item);
+      const indikator = await generateIndikatorSoal(item, user.apiKey);
       await updateKisiKisi(item.id, 'indikatorSoal', indikator);
     } catch (e: any) {
       alert("Gagal memanggil AI: " + e.message);
@@ -157,7 +158,7 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
     if (!item.indikatorSoal) return;
     setAiLoadingMap(prev => ({ ...prev, [`soal-${item.id}`]: true }));
     try {
-      const result = await generateButirSoal(item);
+      const result = await generateButirSoal(item, user.apiKey);
       await updateDoc(doc(db, "kisikisi", item.id), { 
         stimulus: result.stimulus,
         soal: result.soal, 

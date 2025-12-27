@@ -132,13 +132,15 @@ const LKPDManager: React.FC<LKPDManagerProps> = ({ user }) => {
 
     setIsLoadingAI(true);
     try {
-      const result = await generateLKPDContent(rpm);
+      // FIX: Meneruskan user.apiKey ke servis AI
+      const result = await generateLKPDContent(rpm, user.apiKey);
       if (result) {
         await updateDoc(doc(db, "lkpd", id), { ...result });
         setMessage({ text: 'Konten LKPD disusun oleh AI!', type: 'success' });
       }
-    } catch (err) {
-      setMessage({ text: 'AI Error', type: 'error' });
+    } catch (err: any) {
+      console.error(err);
+      setMessage({ text: 'AI Gagal: ' + (err.message || 'Cek kuota'), type: 'error' });
     } finally {
       setIsLoadingAI(false);
     }
