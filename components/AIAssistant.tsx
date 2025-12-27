@@ -74,12 +74,12 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
       if (rawMsg === 'API_KEY_MISSING') {
         errorType = 'AUTH';
         errorText = 'Kunci API Gemini tidak terdeteksi. Silakan masukkan kunci di menu Pengaturan.';
+      } else if (rawMsg === 'QUOTA_EXCEEDED' || rawMsg.includes('429') || rawMsg.includes('RESOURCE_EXHAUSTED')) {
+        errorType = 'QUOTA';
+        errorText = 'Batas kuota gratis API Google Anda telah tercapai atau terlalu cepat mengirim pesan.';
       } else if (rawMsg === 'MODEL_NOT_READY') {
         errorType = 'MODEL';
         errorText = 'Model Gemini tidak merespon. Silakan coba lagi dalam beberapa saat.';
-      } else if (rawMsg === 'QUOTA_EXCEEDED') {
-        errorType = 'QUOTA';
-        errorText = 'Batas kuota gratis API Google Anda telah tercapai untuk saat ini.';
       }
 
       setMessages(prev => [...prev, { 
@@ -160,9 +160,10 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
                              <div className="bg-white/5 p-3 rounded-xl border border-white/10">
                                 <p className="text-[10px] font-bold mb-2">Solusi:</p>
                                 <ul className="text-[9px] list-disc pl-4 space-y-2 text-slate-400">
-                                  <li>Sistem otomatis mencoba lagi jika limit tercapai.</li>
-                                  <li>Jika tetap gagal, tunggu <b>2 menit</b> lalu kirim pesan lagi.</li>
+                                  <li>Sistem akan mencoba lagi secara otomatis jika limit tercapai sebentar.</li>
+                                  <li>Jika tetap gagal, tunggu <b>1-2 menit</b> lalu kirim pesan lagi.</li>
                                   <li>Google membatasi akun gratis untuk menjaga kestabilan server.</li>
+                                  <li>Coba gunakan pertanyaan yang lebih singkat.</li>
                                 </ul>
                              </div>
                              <button 
@@ -171,13 +172,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
                              >
                               <RetryIcon size={12}/> COBA LAGI SEKARANG
                              </button>
-                             <a 
-                              href="https://aistudio.google.com/app/usage" 
-                              target="_blank"
-                              className="w-full bg-slate-800 py-2 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 hover:bg-black transition-all border border-white/10"
-                             >
-                              <LinkIcon size={12}/> CEK PENGGUNAAN API
-                             </a>
                           </div>
                         )}
 
@@ -185,7 +179,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
                           <div className="space-y-3">
                              <button 
                               onClick={() => { setIsOpen(false); }}
-                              className="w-full bg-indigo-600 py-2 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all"
+                              className="w-full bg-indigo-600 py-2.5 rounded-xl text-[9px] font-black uppercase flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all"
                              >
                               <SettingsIcon size={12}/> KE MENU PENGATURAN
                              </button>
@@ -220,7 +214,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
             </div>
             <p className="text-[8px] text-center text-slate-400 mt-3 font-bold uppercase tracking-widest flex items-center justify-center gap-2">
               <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
-              Engine: Gemini 3 Flash (Optimized)
+              Engine: Gemini 3 Flash (Free Tier)
             </p>
           </div>
         </>

@@ -19,7 +19,7 @@ const getApiKey = () => {
   return process.env.API_KEY || null;
 };
 
-// Menggunakan model Gemini 3 Flash sesuai instruksi untuk tugas teks dasar/cepat
+// Menggunakan model Gemini 3 Flash yang paling stabil untuk Free Tier
 const DEFAULT_MODEL = 'gemini-3-flash-preview';
 
 const getAI = () => {
@@ -31,9 +31,9 @@ const getAI = () => {
 };
 
 /**
- * Sistem Retry dengan Exponential Backoff
+ * Sistem Retry dengan Exponential Backoff yang ditingkatkan
  */
-const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 4): Promise<T> => {
+const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 5): Promise<T> => {
   let lastError: any;
   for (let i = 0; i < maxRetries; i++) {
     try {
@@ -41,13 +41,23 @@ const withRetry = async <T>(fn: () => Promise<T>, maxRetries = 4): Promise<T> =>
     } catch (error: any) {
       lastError = error;
       const errorStr = JSON.stringify(error).toLowerCase();
-      const isQuotaError = errorStr.includes('429') || errorStr.includes('quota') || errorStr.includes('resource_exhausted');
+      
+      // Deteksi error kuota (429)
+      const isQuotaError = errorStr.includes('429') || 
+                           errorStr.includes('quota') || 
+                           errorStr.includes('resource_exhausted');
       
       if (isQuotaError && i < maxRetries - 1) {
+        // Jeda meningkat: 2s, 4s, 8s, 16s...
         const delay = Math.pow(2, i + 1) * 1000;
-        console.warn(`Kuota API habis. Mencoba lagi dalam ${delay}ms...`);
+        console.warn(`Kuota API (429) tercapai. Mencoba ulang otomatis ke-${i + 1} dalam ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
         continue;
+      }
+      
+      // Jika error bukan kuota, atau sudah maksimal retry, lempar errornya
+      if (isQuotaError) {
+        throw new Error('QUOTA_EXCEEDED');
       }
       throw error;
     }
@@ -73,7 +83,7 @@ export const analyzeDocuments = async (files: UploadedFile[], prompt: string) =>
     // Siapkan bagian multimodal (file inline data)
     const fileParts = files.map(file => ({
       inlineData: {
-        data: file.base64.split(',')[1], // Ambil raw base64 tanpa prefix data:type
+        data: file.base64.split(',')[1],
         mimeType: file.type
       }
     }));
