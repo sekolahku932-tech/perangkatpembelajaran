@@ -93,6 +93,13 @@ const AnalisisManager: React.FC<AnalisisManagerProps> = ({ user }) => {
       .sort((a, b) => (a.kode || '').localeCompare(b.kode || '', undefined, { numeric: true, sensitivity: 'base' }));
   }, [cps, filterFase, filterMapel]);
 
+  // Map CP IDs to their descriptions for faster lookup in table
+  const cpLookup = useMemo(() => {
+    const map: Record<string, string> = {};
+    cps.forEach(c => map[c.id] = c.deskripsi);
+    return map;
+  }, [cps]);
+
   const handleAnalyze = async (cp: CapaianPembelajaran) => {
     setIsAnalyzing(true);
     try {
@@ -142,7 +149,7 @@ const AnalisisManager: React.FC<AnalisisManagerProps> = ({ user }) => {
         </thead>
         <tbody>
           ${filteredAnalisis.map((item, idx) => {
-            const cpDesc = cps.find(c => c.id === item.cpId)?.deskripsi || '-';
+            const cpDesc = cpLookup[item.cpId] || '-';
             return `
               <tr>
                 <td class="text-center">${idx + 1}</td>
@@ -221,10 +228,10 @@ const AnalisisManager: React.FC<AnalisisManagerProps> = ({ user }) => {
           <table className="w-full border-collapse border-2 border-black text-[10px]">
             <thead>
               <tr className="bg-slate-100 h-12 uppercase font-black text-center">
-                <th className="border-2 border-black w-10">NO</th>
-                <th className="border-2 border-black px-4 py-2 text-left uppercase w-1/4">CAPAIAN PEMBELAJARAN</th>
-                <th className="border-2 border-black px-4 py-2 text-left uppercase w-1/4">MATERI POKOK</th>
-                <th className="border-2 border-black px-4 py-2 text-left uppercase">TUJUAN PEMBELAJARAN</th>
+                <th className="border-2 border-black w-[5%]">NO</th>
+                <th className="border-2 border-black px-4 py-2 text-left uppercase w-[30%]">CAPAIAN PEMBELAJARAN</th>
+                <th className="border-2 border-black px-4 py-2 text-left uppercase w-[20%]">MATERI POKOK</th>
+                <th className="border-2 border-black px-4 py-2 text-left uppercase w-[45%]">TUJUAN PEMBELAJARAN</th>
               </tr>
             </thead>
             <tbody>
@@ -232,11 +239,11 @@ const AnalisisManager: React.FC<AnalisisManagerProps> = ({ user }) => {
                 <tr><td colSpan={4} className="border-2 border-black p-10 text-center italic text-slate-400">Belum ada data analisis CP-TP.</td></tr>
               ) : (
                 filteredAnalisis.map((item, idx) => {
-                  const cp = cps.find(c => c.id === item.cpId);
+                  const cpDesc = cpLookup[item.cpId] || '-';
                   return (
                     <tr key={item.id} className="break-inside-avoid">
                       <td className="border-2 border-black p-3 text-center font-bold">{idx + 1}</td>
-                      <td className="border-2 border-black p-3 leading-relaxed text-justify italic">{cp?.deskripsi || '-'}</td>
+                      <td className="border-2 border-black p-3 leading-relaxed text-justify italic">{cpDesc}</td>
                       <td className="border-2 border-black p-3 font-black uppercase leading-tight">{item.materi}</td>
                       <td className="border-2 border-black p-3 leading-relaxed text-justify">{item.tujuanPembelajaran}</td>
                     </tr>
@@ -336,22 +343,22 @@ const AnalisisManager: React.FC<AnalisisManagerProps> = ({ user }) => {
               <table className="w-full text-left">
                 <thead>
                   <tr className="bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest h-12">
-                    <th className="px-6 py-2 w-16 text-center">No</th>
-                    <th className="px-6 py-2 w-48">Capaian Pembelajaran</th>
-                    <th className="px-6 py-2 w-48">Materi Pokok</th>
-                    <th className="px-6 py-2">Tujuan Pembelajaran</th>
-                    <th className="px-6 py-2 w-16 text-center">Aksi</th>
+                    <th className="px-6 py-2 w-[5%] text-center">No</th>
+                    <th className="px-6 py-2 w-[30%]">Capaian Pembelajaran</th>
+                    <th className="px-6 py-2 w-[20%]">Materi Pokok</th>
+                    <th className="px-6 py-2 w-[35%]">Tujuan Pembelajaran</th>
+                    <th className="px-6 py-2 w-[10%] text-center">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {filteredAnalisis.length === 0 ? (
                     <tr><td colSpan={5} className="py-32 text-center text-slate-300 font-bold uppercase text-xs tracking-widest">Belum ada hasil analisis</td></tr>
                   ) : filteredAnalisis.map((item, idx) => {
-                    const cp = cps.find(c => c.id === item.cpId);
+                    const cpDesc = cpLookup[item.cpId] || '-';
                     return (
                       <tr key={item.id} className="group hover:bg-slate-50/50 transition-colors align-top">
                         <td className="px-6 py-6 text-center font-black text-slate-300">{idx + 1}</td>
-                        <td className="px-6 py-6 text-[10px] text-slate-500 italic leading-relaxed">{cp?.deskripsi || '-'}</td>
+                        <td className="px-6 py-6 text-[10px] text-slate-500 italic leading-relaxed">{cpDesc}</td>
                         <td className="px-6 py-6 font-black text-[10px] text-slate-900 uppercase">
                            <textarea className="w-full bg-emerald-50/50 border border-emerald-100 rounded-xl p-3 text-[10px] font-black text-emerald-800 uppercase resize-none h-20 outline-none focus:ring-2 focus:ring-emerald-500" value={item.materi} onChange={e => updateDoc(doc(db, "analisis", item.id), { materi: e.target.value })} />
                         </td>

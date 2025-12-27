@@ -351,8 +351,19 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
     if (!rpm || !rpm.tujuanPembelajaran) { setMessage({ text: 'Pilih TP dulu!', type: 'error' }); return; }
     setIsLoadingAI(true);
     try {
-      const result = await generateRPMContent(rpm.tujuanPembelajaran, rpm.materi, rpm.kelas, rpm.praktikPedagogis, rpm.alokasiWaktu, rpm.jumlahPertemuan || 1);
-      if (result) { await updateDoc(doc(db, "rpm", id), { ...result }); setMessage({ text: 'Analisis AI Berhasil!', type: 'success' }); }
+      const result = await generateRPMContent(
+        rpm.tujuanPembelajaran, 
+        rpm.materi, 
+        rpm.kelas, 
+        rpm.praktikPedagogis, 
+        rpm.alokasiWaktu, 
+        rpm.jumlahPertemuan || 1,
+        user.apiKey
+      );
+      if (result) { 
+        await updateDoc(doc(db, "rpm", id), { ...result }); 
+        setMessage({ text: 'Analisis AI Berhasil!', type: 'success' }); 
+      }
     } catch (err) { setMessage({ text: 'AI Error', type: 'error' }); }
     finally { setIsLoadingAI(false); }
   };
@@ -364,8 +375,19 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
     if (!atp) return;
     setIsLoadingAsesmenAI(true);
     try {
-      const result = await generateAssessmentDetails(rpm.tujuanPembelajaran, rpm.materi, rpm.kelas, atp.asesmenAwal, atp.asesmenProses, atp.asesmenAkhir);
-      if (result) { await updateDoc(doc(db, "rpm", id), { asesmenTeknik: result }); setMessage({ text: '3 Rubrik Asesmen Selesai disusun!', type: 'success' }); }
+      const result = await generateAssessmentDetails(
+        rpm.tujuanPembelajaran, 
+        rpm.materi, 
+        rpm.kelas, 
+        atp.asesmenAwal, 
+        atp.asesmenProses, 
+        atp.asesmenAkhir,
+        user.apiKey
+      );
+      if (result) { 
+        await updateDoc(doc(db, "rpm", id), { asesmenTeknik: result }); 
+        setMessage({ text: '3 Rubrik Asesmen Selesai disusun!', type: 'success' }); 
+      }
     } catch (err) { setMessage({ text: 'Rubrik AI Error', type: 'error' }); } finally { setIsLoadingAsesmenAI(false); }
   };
 
@@ -396,7 +418,7 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
     if (!atp) return;
     setIsLoadingPedagogyAI(true);
     try {
-      const result = await recommendPedagogy(rpm.tujuanPembelajaran, atp.alurTujuanPembelajaran, rpm.materi, rpm.kelas);
+      const result = await recommendPedagogy(rpm.tujuanPembelajaran, atp.alurTujuanPembelajaran, rpm.materi, rpm.kelas, user.apiKey);
       if (result) { await updateDoc(doc(db, "rpm", id), { praktikPedagogis: result.modelName }); setMessage({ text: `Rekomendasi AI: ${result.modelName}.`, type: 'info' }); }
     } catch (err) { setMessage({ text: 'Gagal mendapatkan rekomendasi AI', type: 'error' }); } finally { setIsLoadingPedagogyAI(false); }
   };

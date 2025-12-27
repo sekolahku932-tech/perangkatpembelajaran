@@ -7,6 +7,7 @@ const getSystemApiKey = () => {
 };
 
 const DEFAULT_MODEL = 'gemini-3-flash-preview';
+const COMPLEX_MODEL = 'gemini-3-pro-preview';
 
 /**
  * Membuat instance AI baru menggunakan kunci yang tersedia.
@@ -98,7 +99,7 @@ export const analyzeCPToTP = async (cpContent: string, elemen: string, fase: str
 export const completeATPDetails = async (tp: string, materi: string, kelas: string, apiKey?: string) => {
   return withRetry(async (ai) => {
     const response = await ai.models.generateContent({
-      model: DEFAULT_MODEL,
+      model: COMPLEX_MODEL,
       contents: `Lengkapi ATP secara ringkas. TP: ${tp}.`,
       config: {
         responseMimeType: "application/json",
@@ -156,7 +157,7 @@ export const generateRPMContent = async (tp: string, materi: string, kelas: stri
       "kegiatanPenutup": "Pertemuan 1:\\n1. ..."
     }`;
     const response = await ai.models.generateContent({
-      model: DEFAULT_MODEL,
+      model: COMPLEX_MODEL,
       contents: prompt,
       config: { responseMimeType: "application/json", thinkingConfig: { thinkingBudget: 0 } }
     });
@@ -167,7 +168,7 @@ export const generateRPMContent = async (tp: string, materi: string, kelas: stri
 export const generateAssessmentDetails = async (tp: string, materi: string, kelas: string, narasiAwal: string, narasiProses: string, narasiAkhir: string, apiKey?: string) => {
   return withRetry(async (ai) => {
     const response = await ai.models.generateContent({
-      model: DEFAULT_MODEL,
+      model: COMPLEX_MODEL,
       contents: `Buat 3 rubrik asesmen singkat untuk TP: "${tp}".`,
       config: {
         responseMimeType: "application/json",
@@ -206,7 +207,7 @@ export const generateAssessmentDetails = async (tp: string, materi: string, kela
 export const generateLKPDContent = async (rpm: any, apiKey?: string) => {
   return withRetry(async (ai) => {
     const response = await ai.models.generateContent({
-      model: DEFAULT_MODEL,
+      model: COMPLEX_MODEL,
       contents: `Susun LKPD ringkas. Materi: ${rpm.materi}.`,
       config: { responseMimeType: "application/json", thinkingConfig: { thinkingBudget: 0 } }
     });
@@ -233,7 +234,7 @@ export const generateIndikatorSoal = async (item: any, apiKey?: string) => {
 export const generateButirSoal = async (item: any, apiKey?: string) => {
   return withRetry(async (ai) => {
     const response = await ai.models.generateContent({
-      model: DEFAULT_MODEL,
+      model: COMPLEX_MODEL,
       contents: `Buat 1 butir soal/instrumen untuk TP: "${item.tujuanPembelajaran}"`,
       config: {
         responseMimeType: "application/json",
