@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { UploadedFile } from "../types";
 
@@ -12,7 +13,6 @@ const getApiKey = (customKey?: string) => {
   return key;
 };
 
-// Menggunakan gemini-3-flash-preview untuk semua tugas agar menghindari limit kuota 429 pada model Pro
 const DEFAULT_MODEL = 'gemini-3-flash-preview';
 const COMPLEX_MODEL = 'gemini-3-flash-preview'; 
 
@@ -110,17 +110,7 @@ export const recommendPedagogy = async (tp: string, alurAtp: string, materi: str
 export const generateRPMContent = async (tp: string, materi: string, kelas: string, praktikPedagogis: string, alokasiWaktu: string, jumlahPertemuan: number = 1, apiKey?: string) => {
   const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
   const prompt = `Susun langkah pembelajaran mendalam 3M (Memahami, Mengaplikasi, Merefleksi) untuk SD Kelas ${kelas}.
-  TP: "${tp}" | Materi: "${materi}" | Model: "${praktikPedagogis}" | Sesi: ${jumlahPertemuan} pertemuan.
-  
-  INSTRUKSI KRITIKAL (WAJIB):
-  Dalam setiap narasi kegiatan (Awal, Inti, Penutup), Anda WAJIB menyertakan elemen filosofis berikut secara eksplisit:
-  1. BERKESADARAN (Mindful): Narasi harus menyebutkan aktivitas yang membangun kesadaran penuh atau kehadiran utuh siswa.
-  2. BERMAKNA (Meaningful): Narasi harus menyebutkan keterhubungan materi dengan dunia nyata siswa.
-  3. MENGGEMBIRAKAN (Joyful): Narasi harus menyebutkan suasana yang memicu emosi positif atau kegembiraan.
-
-  SANGAT PENTING: Anda HARUS secara harfiah menulis kata 'Berkesadaran', 'Bermakna', dan 'Menggembirakan' di dalam isi teks narasi kegiatan untuk menunjukkan penerapan Deep Learning.
-  
-  PENTING: Jika pertemuan > 1, tuliskan "Pertemuan 1:", "Pertemuan 2:", dst di awal setiap blok kegiatan.`;
+  TP: "${tp}" | Materi: "${materi}" | Model: "${praktikPedagogis}" | Sesi: ${jumlahPertemuan} pertemuan.`;
   
   const response = await ai.models.generateContent({
     model: COMPLEX_MODEL,
@@ -146,13 +136,9 @@ export const generateRPMContent = async (tp: string, materi: string, kelas: stri
 
 export const generateAssessmentDetails = async (tp: string, materi: string, kelas: string, apiKey?: string) => {
   const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
-  const prompt = `Susun 3 rubrik asesmen lengkap (AWAL, PROSES, AKHIR) untuk SD Kelas ${kelas}. 
-  TP: "${tp}" | Materi: "${materi}"
-  Asesmen awal fokus pada Kesiapan, Proses fokus pada Formatif, Akhir fokus pada Sumatif.`;
-
   const response = await ai.models.generateContent({
     model: COMPLEX_MODEL,
-    contents: prompt,
+    contents: `Susun 3 rubrik asesmen (AWAL, PROSES, AKHIR) untuk SD: TP "${tp}"`,
     config: { 
       responseMimeType: "application/json",
       responseSchema: {
@@ -163,7 +149,6 @@ export const generateAssessmentDetails = async (tp: string, materi: string, kela
             kategori: { type: Type.STRING },
             teknik: { type: Type.STRING },
             bentuk: { type: Type.STRING },
-            instruksi: { type: Type.STRING },
             rubrikDetail: {
               type: Type.ARRAY,
               items: {
@@ -174,12 +159,10 @@ export const generateAssessmentDetails = async (tp: string, materi: string, kela
                   level3: { type: Type.STRING },
                   level2: { type: Type.STRING },
                   level1: { type: Type.STRING }
-                },
-                required: ["aspek", "level4", "level3", "level2", "level1"]
+                }
               }
             }
-          },
-          required: ["kategori", "teknik", "bentuk", "rubrikDetail"]
+          }
         }
       }
     }
@@ -191,7 +174,7 @@ export const generateLKPDContent = async (rpm: any, apiKey?: string) => {
   const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
   const response = await ai.models.generateContent({
     model: COMPLEX_MODEL,
-    contents: `Buat konten LKPD SD. Materi: ${rpm.materi}. Fokus: ${rpm.tujuanPembelajaran}.`,
+    contents: `Buat LKPD SD. Materi: ${rpm.materi}.`,
     config: { 
       responseMimeType: "application/json",
       responseSchema: {
@@ -211,23 +194,45 @@ export const generateLKPDContent = async (rpm: any, apiKey?: string) => {
 
 export const generateIndikatorSoal = async (item: any, apiKey?: string) => {
   const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
-  const isNonTes = item.jenis === 'Non Tes';
-  const prompt = isNonTes 
-    ? `Buat 1 indikator observasi sikap SD. TP: "${item.tujuanPembelajaran}".`
-    : `Buat 1 indikator soal AKM SD. TP: "${item.tujuanPembelajaran}".`;
+  
+  const prompt = `Berikan HANYA teks murni satu paragraf indikator soal AKM SD. 
+    DILARANG menyertakan metadata, label, atau ulasan tambahan. 
+    Format WAJIB: "Disajikan..., peserta didik dapat...".
+    Context: TP "${item.tujuanPembelajaran}", Level "${item.kompetensi}", Bentuk "${item.bentukSoal}".`;
 
   const response = await ai.models.generateContent({
     model: DEFAULT_MODEL,
-    contents: prompt
+    contents: prompt,
+    config: { temperature: 0.1 }
   });
   return response.text?.trim() || "";
 };
 
 export const generateButirSoal = async (item: any, apiKey?: string) => {
   const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
+  
+  const prompt = `Buatlah 1 butir soal asesmen SD. 
+    Indikator: "${item.indikatorSoal}"
+    BENTUK SOAL WAJIB: "${item.bentukSoal}"
+
+    ATURAN KETAT:
+    1. STIMULUS: Jika indikator menyebutkan tabel/gambar/teks, buat tabel Markdown (| Kolom |) yang rapi. 
+       - Pisahkan baris kosong sebelum dan sesudah tabel.
+       - Jika teks Arab, tulis dengan harakat lengkap.
+    
+    2. SOAL & PILIHAN: 
+       - DILARANG MENGGUNAKAN KATA "STIMULUS" dalam teks pertanyaan. Gunakan "tabel di atas", "bacaan tersebut", atau "kalimat di atas".
+       - Jika PILIHAN GANDA: Susun opsi A, B, C, D SECARA VERTIKAL (satu baris satu opsi, diawali huruf kapital dan titik).
+       - Jika MENJODOHKAN: Sajikan tabel pasangan yang menantang.
+       - Jika ISIAN/URAIAN: Berikan perintah yang jelas.
+
+    3. KUNCI: Berikan huruf atau jawaban murni saja.
+
+    Output dalam JSON field: stimulus, soal, kunci.`;
+
   const response = await ai.models.generateContent({
     model: COMPLEX_MODEL,
-    contents: `Buat 1 butir soal Asesmen SD. TP: "${item.tujuanPembelajaran}". Indikator: ${item.indikatorSoal}`,
+    contents: prompt,
     config: {
       responseMimeType: "application/json",
       responseSchema: {

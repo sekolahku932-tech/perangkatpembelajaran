@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Fase, Kelas, Siswa, AsesmenNilai, AsesmenInstrumen, ATPItem, MATA_PELAJARAN, SchoolSettings, User, KisiKisiItem } from '../types';
 import { 
@@ -113,7 +114,6 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
         elemen: '', cp: '', kompetensi: 'Pengetahuan dan Pemahaman', tpId: '', tujuanPembelajaran: '',
         indikatorSoal: '', jenis: 'Tes', bentukSoal: 'Pilihan Ganda', stimulus: '', soal: '', kunciJawaban: '', nomorSoal: nextNo
       });
-      /* FIX: Use 'nameToUse' instead of undefined 'newName' to correctly update the assessment name state when a new row is added. */
       if (customName) setNamaAsesmen(nameToUse);
     } catch (e) { console.error(e); }
   };
@@ -179,11 +179,27 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
     let currentTableRows: string[][] = [];
     let currentParagraphLines: string[] = [];
 
+    const containsArabic = (text: string) => /[\u0600-\u06FF]/.test(text);
+
     const flushParagraph = (key: string) => {
       if (currentParagraphLines.length > 0) {
         renderedParts.push(
           <div key={key} className="whitespace-pre-wrap text-justify leading-relaxed mb-4">
-            {currentParagraphLines.join('\n').trim()}
+            {currentParagraphLines.map((line, li) => {
+              const trimmedLine = line.trim();
+              // Deteksi opsi A. B. C. D.
+              const isOption = /^[A-D]\.\s/.test(trimmedLine);
+              const isArabic = containsArabic(trimmedLine);
+              return (
+                <div 
+                  key={li} 
+                  dir={isArabic ? 'rtl' : 'ltr'}
+                  className={`${isOption ? 'block pl-6 -indent-6 mb-1.5' : ''} ${isArabic ? 'text-right font-serif text-2xl leading-loose my-3' : ''}`}
+                >
+                  {line}
+                </div>
+              );
+            })}
           </div>
         );
         currentParagraphLines = [];
@@ -194,8 +210,8 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
       if (currentTableRows.length > 0) {
         const rows = [...currentTableRows];
         renderedParts.push(
-          <div key={key} className="overflow-x-auto my-4">
-            <table className={`border-collapse border-2 border-black w-full ${isPrint ? 'text-[10px]' : 'text-[12px]'} shadow-sm`}>
+          <div key={key} className="overflow-x-auto my-5">
+            <table className={`border-collapse border-2 border-black w-full shadow-sm ${isPrint ? 'text-[9.5px]' : 'text-[11.5px]'}`}>
               <thead>
                 <tr className="bg-slate-100">
                   {rows[0].map((cell, i) => (
@@ -208,11 +224,18 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
               <tbody>
                 {rows.slice(1).map((row, ri) => (
                   <tr key={ri} className="hover:bg-slate-50 transition-colors">
-                    {row.map((cell, ci) => (
-                      <td key={ci} className={`border-2 border-black p-2 ${row.length === 2 ? 'w-1/2' : ''} ${ci === 0 || row.length === 2 ? 'text-center font-bold bg-slate-50/50' : 'text-left'}`}>
-                        {cell}
-                      </td>
-                    ))}
+                    {row.map((cell, ci) => {
+                      const isArabic = containsArabic(cell);
+                      return (
+                        <td 
+                          key={ci} 
+                          dir={isArabic ? 'rtl' : 'ltr'}
+                          className={`border-2 border-black p-2.5 ${ci === 0 && rows[0].length > 1 ? 'bg-slate-50/50 font-bold text-center w-12' : ''} ${isArabic ? 'text-3xl font-serif leading-loose text-center py-5' : 'text-left'}`}
+                        >
+                          {cell}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>
@@ -225,25 +248,27 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
 
     lines.forEach((line, index) => {
       const trimmedLine = line.trim();
-      const isTableRow = trimmedLine.startsWith('|') && trimmedLine.endsWith('|');
+      const isTableRow = trimmedLine.startsWith('|') && trimmedLine.endsWith('|') && !trimmedLine.includes('---');
       const isSeparator = trimmedLine.includes('|') && trimmedLine.includes('---');
 
       if (isTableRow) {
-        if (!isSeparator) {
           const cells = trimmedLine
             .split('|')
             .map(c => c.trim())
-            .filter((_, i, arr) => i > 0 && i < arr.length - 1);
+            .filter((cell, i, arr) => !(i === 0 && cell === '') && !(i === arr.length - 1 && cell === ''));
           
           if (cells.length > 0) {
             if (currentParagraphLines.length > 0) flushParagraph(`p-${index}`);
             currentTableRows.push(cells);
           }
-        }
+      } else if (isSeparator) {
+          // Skip
       } else {
         if (currentTableRows.length > 0) flushTable(`t-${index}`);
-        if (trimmedLine.length > 0 || currentParagraphLines.length > 0) {
+        if (trimmedLine.length > 0) {
           currentParagraphLines.push(line);
+        } else if (currentParagraphLines.length > 0) {
+          flushParagraph(`p-${index}`);
         }
       }
     });
@@ -337,12 +362,12 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
           {activeTab === 'KISI_KISI' ? (
             <div className="space-y-6">
               <h3 className="text-center font-black uppercase text-sm mb-4">KISI-KISI, BUTIR SOAL, DAN KUNCI JAWABAN</h3>
-              <table className="w-full border-collapse border-2 border-black text-[7px]">
+              <table className="w-full border-collapse border-2 border-black text-[7.5px]">
                 <thead>
                   <tr className="bg-slate-100">
                     <th className="border-2 border-black p-2 text-left w-20">ELEMEN / CP</th>
                     <th className="border-2 border-black p-2 text-center w-16">LEVEL</th>
-                    <th className="border-2 border-black p-2 text-left w-24">INDIKATOR</th>
+                    <th className="border-2 border-black p-2 text-left w-32">INDIKATOR</th>
                     <th className="border-2 border-black p-2 text-left">BACAAN & BUTIR SOAL (KONTEN)</th>
                     <th className="border-2 border-black p-1 text-center w-10">KUNCI</th>
                     <th className="border-2 border-black p-1 text-center w-8">NO</th>
@@ -356,11 +381,11 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
                       <td className="border-2 border-black p-2 italic leading-tight">{item.indikatorSoal}</td>
                       <td className="border-2 border-black p-2 leading-relaxed">
                          {item.stimulus && (
-                           <div className="mb-2 p-2 bg-slate-50 border border-slate-200 italic">
+                           <div className="mb-2 p-2 bg-slate-50 border border-slate-200">
                              {renderSoalContent(item.stimulus, true)}
                            </div>
                          )}
-                         <div>{renderSoalContent(item.soal, true)}</div>
+                         <div className="font-bold">{renderSoalContent(item.soal, true)}</div>
                       </td>
                       <td className="border-2 border-black p-1 text-center font-black bg-slate-100">{item.kunciJawaban}</td>
                       <td className="border-2 border-black p-1 text-center font-bold">{item.nomorSoal}</td>
@@ -380,14 +405,14 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
                       <td className="w-8 pt-1 align-top font-black text-[14px]">{item.nomorSoal}.</td>
                       <td className="pb-12 align-top">
                          {item.stimulus && (
-                           <div className="mb-4">
-                              <p className="font-bold text-[11px] italic text-slate-700 mb-2 tracking-tight">Bacalah teks/data di bawah ini dengan saksama untuk menjawab soal!</p>
-                              <div className="p-6 border-[1.5px] border-black bg-slate-50 italic text-[12px] leading-relaxed shadow-sm">
+                           <div className="mb-6">
+                              <p className="font-bold text-[11px] italic text-slate-700 mb-2 tracking-tight">Cermatilah teks/tabel berikut untuk menjawab soal!</p>
+                              <div className="p-6 border-[1.5px] border-black bg-slate-50 italic text-[12.5px] leading-relaxed shadow-sm">
                                 {renderSoalContent(item.stimulus, true)}
                               </div>
                            </div>
                          )}
-                         <div className="text-[13px] leading-relaxed">
+                         <div className="text-[13.5px] leading-relaxed">
                            {renderSoalContent(item.soal, true)}
                          </div>
                       </td>
@@ -507,7 +532,7 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
                   <th className="px-6 py-2 w-48">Elemen & TP</th>
                   <th className="px-6 py-2 w-40 text-center">Level Kognitif</th>
                   <th className="px-6 py-2 w-40 text-center">Bentuk</th>
-                  <th className="px-6 py-2 w-56">Indikator Soal (AI)</th>
+                  <th className="px-6 py-2 w-72">Indikator Soal (AI)</th>
                   <th className="px-6 py-2 w-[700px]">Konten Soal (Bacaan, Pertanyaan, Kunci)</th>
                   <th className="px-6 py-2 w-24 text-center border-l border-white/5">No Soal</th>
                   <th className="px-6 py-2 w-16 text-center">Aksi</th>
@@ -545,7 +570,7 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
                       </select>
                     </td>
                     <td className="px-6 py-4 relative group">
-                      <textarea className="w-full bg-white border border-slate-200 rounded-xl p-2 text-[10px] font-medium min-h-[100px]" value={item.indikatorSoal} onChange={e => updateKisiKisi(item.id, 'indikatorSoal', e.target.value)} />
+                      <textarea className="w-full bg-white border border-slate-200 rounded-xl p-2 text-[10px] font-bold italic leading-relaxed min-h-[100px]" value={item.indikatorSoal} onChange={e => updateKisiKisi(item.id, 'indikatorSoal', e.target.value)} />
                       <button onClick={() => generateIndikatorAI(item)} className="absolute bottom-6 right-8 text-indigo-600 bg-white p-1 rounded shadow-sm">
                         {aiLoadingMap[`ind-${item.id}`] ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14}/>}
                       </button>
@@ -557,11 +582,14 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
                                <BookText size={12}/> Teks Bacaan / Tabel Data
                              </div>
                              <textarea className="flex-1 w-full bg-white border border-slate-200 rounded-xl p-2 text-[10px] font-medium italic leading-relaxed min-h-[160px]" value={item.stimulus} placeholder="Teks bacaan atau Tabel Markdown..." onChange={e => updateKisiKisi(item.id, 'stimulus', e.target.value)} />
+                             <div className="mt-2 overflow-hidden max-h-40 overflow-y-auto border border-slate-100 p-1 bg-white rounded-lg">
+                                {renderSoalContent(item.stimulus)}
+                             </div>
                           </div>
                           <div className="space-y-3 flex flex-col">
                              <div>
-                               <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Pertanyaan & Opsi / Pilihan:</span>
-                               <textarea className="w-full bg-white border border-slate-200 rounded-xl p-2 text-[11px] font-bold min-h-[120px]" value={item.soal} onChange={e => updateKisiKisi(item.id, 'soal', e.target.value)} placeholder="Butir soal (gunakan tabel jika menjodohkan)..." />
+                               <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Pertanyaan & Pilihan:</span>
+                               <textarea className="w-full bg-white border border-slate-200 rounded-xl p-2 text-[11px] font-bold min-h-[120px]" value={item.soal} onChange={e => updateKisiKisi(item.id, 'soal', e.target.value)} placeholder="A, B, C, D susun ke bawah..." />
                              </div>
                              <div className="flex items-center gap-2 mt-auto">
                                <span className="text-[9px] font-black uppercase text-slate-400">Kunci:</span>
@@ -624,7 +652,7 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
                                  <div className="space-y-6">
                                     {item.stimulus && (
                                       <div>
-                                         <p className="font-bold text-[11px] italic text-slate-600 mb-2">Bacalah teks/data berikut untuk menjawab soal nomor {item.nomorSoal}:</p>
+                                         <p className="font-bold text-[11px] italic text-slate-600 mb-2">Cermatilah teks/tabel berikut untuk menjawab soal nomor {item.nomorSoal}:</p>
                                          <div className="p-6 bg-slate-50 rounded-[2rem] border-2 border-indigo-100 shadow-sm relative overflow-hidden mb-6">
                                             <div className="absolute top-0 right-0 p-4 opacity-5 text-indigo-600"><BookText size={64}/></div>
                                             <div className="text-sm leading-relaxed text-slate-700 italic">{renderSoalContent(item.stimulus)}</div>
