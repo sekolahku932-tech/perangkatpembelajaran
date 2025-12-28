@@ -172,9 +172,23 @@ export const generateAssessmentDetails = async (tp: string, materi: string, kela
 
 export const generateLKPDContent = async (rpm: any, apiKey?: string) => {
   const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
+  const count = rpm.jumlahPertemuan || 1;
+  
+  const prompt = `Buat konten Lembar Kerja Peserta Didik (LKPD) SD secara LENGKAP untuk ${count} pertemuan.
+  Materi: "${rpm.materi}"
+  Tujuan Pembelajaran: "${rpm.tujuanPembelajaran}"
+  Fase/Kelas: ${rpm.fase}/Kelas ${rpm.kelas}
+  Model Pembelajaran: ${rpm.praktikPedagogis}
+
+  INSTRUKSI WAJIB:
+  1. Karena LKPD ini untuk ${count} pertemuan, Anda HARUS memberikan rincian untuk SETIAP pertemuan di field 'materiRingkas', 'langkahKerja', 'tugasMandiri', dan 'refleksi'.
+  2. Gunakan penanda teks "Pertemuan 1:", "Pertemuan 2:", dst. di awal setiap blok teks pertemuan dalam field tersebut.
+  3. Pastikan tugas dan langkah kerja berkembang kesulitannya dari pertemuan awal hingga akhir.
+  4. 'petunjuk' berisi instruksi umum untuk seluruh pengerjaan LKPD.`;
+
   const response = await ai.models.generateContent({
     model: COMPLEX_MODEL,
-    contents: `Buat LKPD SD. Materi: ${rpm.materi}.`,
+    contents: prompt,
     config: { 
       responseMimeType: "application/json",
       responseSchema: {
@@ -185,7 +199,8 @@ export const generateLKPDContent = async (rpm: any, apiKey?: string) => {
           langkahKerja: { type: Type.STRING },
           tugasMandiri: { type: Type.STRING },
           refleksi: { type: Type.STRING }
-        }
+        },
+        required: ["petunjuk", "materiRingkas", "langkahKerja", "tugasMandiri", "refleksi"]
       }
     }
   });
