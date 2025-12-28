@@ -4,7 +4,7 @@ import {
   BookOpen, ListTree, FileText, 
   CalendarRange, Rocket, Users, GraduationCap, 
   LayoutDashboard, Cloud, CheckCircle2, ArrowRight,
-  BarChart3, Code
+  BarChart3, Code, ClipboardList
 } from 'lucide-react';
 import { db, collection, onSnapshot } from '../services/firebase';
 import { User } from '../types';
@@ -17,6 +17,7 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   const [stats, setStats] = useState({
     cp: 0,
+    analisis: 0,
     atp: 0,
     prota: 0,
     promes: 0,
@@ -30,6 +31,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
   useEffect(() => {
     const collections = [
       { key: 'cp', name: 'cps' },
+      { key: 'analisis', name: 'analisis' },
       { key: 'atp', name: 'atp' },
       { key: 'prota', name: 'prota' },
       { key: 'promes', name: 'promes' },
@@ -63,6 +65,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
 
   const statCards = [
     { id: 'CP', label: 'Capaian Pembelajaran', count: stats.cp, icon: <BookOpen />, color: 'blue' },
+    { id: 'ANALISIS', label: 'Analisis CP-TP', count: stats.analisis, icon: <ClipboardList />, color: 'emerald' },
     { id: 'ATP', label: 'Alur Tujuan (ATP)', count: stats.atp, icon: <ListTree />, color: 'amber' },
     { id: 'PROTA', label: 'Program Tahunan', count: stats.prota, icon: <FileText />, color: 'violet' },
     { id: 'PROMES', label: 'Program Semester', count: stats.promes, icon: <CalendarRange />, color: 'rose' },
@@ -73,6 +76,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
 
   const colorMap: Record<string, string> = {
     blue: 'bg-blue-50 text-blue-600 border-blue-100 ring-blue-500',
+    emerald: 'bg-emerald-50 text-emerald-600 border-emerald-100 ring-emerald-500',
     amber: 'bg-amber-50 text-amber-600 border-amber-100 ring-amber-500',
     violet: 'bg-violet-50 text-violet-600 border-violet-100 ring-violet-500',
     rose: 'bg-rose-50 text-rose-600 border-rose-100 ring-rose-500',
