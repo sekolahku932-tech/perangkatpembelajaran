@@ -97,6 +97,9 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
 
   const availableMapel = user.role === 'admin' ? MATA_PELAJARAN : user.mapelDiampu;
 
+  // FIX: Define isClassLocked to resolve variable not found errors
+  const isClassLocked = user.role === 'guru' && user.teacherType === 'kelas';
+
   const availableAsesmenNames = useMemo(() => {
     const names = kisikisi
       .filter(k => k.fase === fase && k.kelas === kelas && k.semester === semester && k.mataPelajaran === mapel)
@@ -174,7 +177,11 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
   const renderSoalContent = (content: string, isPrint = false) => {
     if (!content) return null;
     
-    const lines = content.split('\n');
+    // Logika Auto-Split Opsi (A. B. C. D.) jika berada dalam satu baris
+    // Kita paksa newline sebelum penanda B., C., D. jika tidak diawali newline
+    const preprocessedContent = content.replace(/\s+([B-D]\.\s+)/g, '\n$1');
+    
+    const lines = preprocessedContent.split('\n');
     const renderedParts: React.ReactNode[] = [];
     let currentTableRows: string[][] = [];
     let currentParagraphLines: string[] = [];
@@ -188,13 +195,13 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
             {currentParagraphLines.map((line, li) => {
               const trimmedLine = line.trim();
               // Deteksi opsi A. B. C. D.
-              const isOption = /^[A-D]\.\s/.test(trimmedLine);
+              const isOption = /^[A-D][\.\)]\s/.test(trimmedLine);
               const isArabic = containsArabic(trimmedLine);
               return (
                 <div 
                   key={li} 
                   dir={isArabic ? 'rtl' : 'ltr'}
-                  className={`${isOption ? 'block pl-6 -indent-6 mb-1.5' : ''} ${isArabic ? 'text-right font-serif text-2xl leading-loose my-3' : ''}`}
+                  className={`${isOption ? 'block pl-6 -indent-6 mb-2 font-bold' : ''} ${isArabic ? 'text-right font-serif text-2xl leading-loose my-3' : ''}`}
                 >
                   {line}
                 </div>
@@ -248,23 +255,22 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
 
     lines.forEach((line, index) => {
       const trimmedLine = line.trim();
-      const isTableRow = trimmedLine.startsWith('|') && trimmedLine.endsWith('|') && !trimmedLine.includes('---');
+      const isLikelyTableRow = trimmedLine.includes('|') && !trimmedLine.includes('---');
       const isSeparator = trimmedLine.includes('|') && trimmedLine.includes('---');
 
-      if (isTableRow) {
-          const cells = trimmedLine
-            .split('|')
-            .map(c => c.trim())
-            .filter((cell, i, arr) => !(i === 0 && cell === '') && !(i === arr.length - 1 && cell === ''));
+      if (isLikelyTableRow) {
+          const cleanLine = trimmedLine.replace(/^\|/, '').replace(/\|$/, '');
+          const cells = cleanLine.split('|').map(c => c.trim());
           
           if (cells.length > 0) {
             if (currentParagraphLines.length > 0) flushParagraph(`p-${index}`);
             currentTableRows.push(cells);
           }
       } else if (isSeparator) {
-          // Skip
+          // Skip separator
       } else {
         if (currentTableRows.length > 0) flushTable(`t-${index}`);
+        
         if (trimmedLine.length > 0) {
           currentParagraphLines.push(line);
         } else if (currentParagraphLines.length > 0) {
@@ -276,7 +282,7 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
     flushParagraph('p-final');
     flushTable('t-final');
 
-    return <div>{renderedParts}</div>;
+    return renderedParts.length > 0 ? <div>{renderedParts}</div> : null;
   };
 
   const handlePrint = () => {
@@ -341,8 +347,6 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
       </div>
     </div>
   );
-
-  const isClassLocked = user.role === 'guru' && user.teacherType === 'kelas';
 
   if (isPrintMode) {
     return (
@@ -589,7 +593,7 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
                           <div className="space-y-3 flex flex-col">
                              <div>
                                <span className="text-[9px] font-black uppercase text-slate-400 block mb-1">Pertanyaan & Pilihan:</span>
-                               <textarea className="w-full bg-white border border-slate-200 rounded-xl p-2 text-[11px] font-bold min-h-[120px]" value={item.soal} onChange={e => updateKisiKisi(item.id, 'soal', e.target.value)} placeholder="A, B, C, D susun ke bawah..." />
+                               <textarea className="w-full bg-white border border-slate-200 rounded-xl p-2 text-[11px] font-bold min-h-[120px]" value={item.soal} onChange={e => updateKisiKisi(item.id, 'soal', e.target.value)} placeholder="Format: A. Opsi B. Opsi..." />
                              </div>
                              <div className="flex items-center gap-2 mt-auto">
                                <span className="text-[9px] font-black uppercase text-slate-400">Kunci:</span>

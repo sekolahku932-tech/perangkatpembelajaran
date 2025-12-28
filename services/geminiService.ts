@@ -66,9 +66,26 @@ export const analyzeCPToTP = async (cpContent: string, elemen: string, fase: str
 
 export const completeATPDetails = async (tp: string, materi: string, kelas: string, apiKey?: string) => {
   const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
+  
+  // PROMPT DIKETEATKAN PADA 8 DIMENSI KHUSUS
+  const prompt = `Lengkapi detail ATP SD Kelas ${kelas}. TP: "${tp}" | Materi: "${materi}".
+  
+  ATURAN DIMENSI PROFIL:
+  Gunakan HANYA kombinasi dari 8 dimensi berikut untuk field 'dimensiOfProfil':
+  1. Keimanan & Ketakwaan
+  2. Kewargaan
+  3. Penalaran Kritis
+  4. Kreativitas
+  5. Kolaborasi
+  6. Kemandirian
+  7. Kesehatan
+  8. Komunikasi
+  
+  DILARANG menggunakan dimensi Profil Pelajar Pancasila standar nasional lainnya.`;
+
   const response = await ai.models.generateContent({
     model: COMPLEX_MODEL,
-    contents: `Lengkapi detail ATP SD Kelas ${kelas}. TP: "${tp}" | Materi: "${materi}"`,
+    contents: prompt,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
@@ -109,8 +126,23 @@ export const recommendPedagogy = async (tp: string, alurAtp: string, materi: str
 
 export const generateRPMContent = async (tp: string, materi: string, kelas: string, praktikPedagogis: string, alokasiWaktu: string, jumlahPertemuan: number = 1, apiKey?: string) => {
   const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
-  const prompt = `Susun langkah pembelajaran mendalam 3M (Memahami, Mengaplikasi, Merefleksi) untuk SD Kelas ${kelas}.
-  TP: "${tp}" | Materi: "${materi}" | Model: "${praktikPedagogis}" | Sesi: ${jumlahPertemuan} pertemuan.`;
+  
+  const prompt = `Susun Rencana Pembelajaran Mendalam (RPM) SD Kelas ${kelas}.
+  TUJUAN PEMBELAJARAN: "${tp}"
+  MATERI: "${materi}"
+  MODEL/STRATEGI: "${praktikPedagogis}"
+  JUMLAH SESI: ${jumlahPertemuan} pertemuan.
+
+  ATURAN PERMANEN WAJIB:
+  1. FILOSOFI: Pembelajaran HARUS mengintegrasikan prinsip: Berkesadaran (Mindful), Bermakna (Meaningful), dan Menggembirakan (Joyful). Sebutkan kata-kata ini dalam narasi langkah kerja.
+  2. MULTI-SESI: Anda HARUS menyusun rincian untuk SETIAP pertemuan (Pertemuan 1 sampai Pertemuan ${jumlahPertemuan}).
+  3. FORMAT FIELD: Di dalam field 'kegiatanAwal', 'kegiatanInti', dan 'kegiatanPenutup', gunakan penanda "Pertemuan 1:", "Pertemuan 2:", dst. untuk memisahkan rincian tiap sesi.
+  4. ALUR 3M:
+     - Memahami (Kegiatan Awal): Membangun koneksi dan kesadaran diri.
+     - Mengaplikasi (Kegiatan Inti): Praktik bermakna dan kolaboratif.
+     - Merefleksi (Kegiatan Penutup): Penguatan emosional dan kegembiraan belajar.
+
+  Hasilkan respon dalam JSON.`;
   
   const response = await ai.models.generateContent({
     model: COMPLEX_MODEL,
@@ -210,10 +242,11 @@ export const generateLKPDContent = async (rpm: any, apiKey?: string) => {
 export const generateIndikatorSoal = async (item: any, apiKey?: string) => {
   const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
   
-  const prompt = `Berikan HANYA teks murni satu paragraf indikator soal AKM SD. 
+  const prompt = `Berikan HANYA teks murni satu paragraf indikator soal AKM SD untuk Kelas ${item.kelas}. 
     DILARANG menyertakan metadata, label, atau ulasan tambahan. 
     Format WAJIB: "Disajikan..., peserta didik dapat...".
-    Context: TP "${item.tujuanPembelajaran}", Level "${item.kompetensi}", Bentuk "${item.bentukSoal}".`;
+    Context: TP "${item.tujuanPembelajaran}", Level "${item.kompetensi}", Bentuk "${item.bentukSoal}".
+    Tingkat kesulitan bahasa HARUS sesuai untuk anak SD Kelas ${item.kelas}.`;
 
   const response = await ai.models.generateContent({
     model: DEFAULT_MODEL,
@@ -226,21 +259,23 @@ export const generateIndikatorSoal = async (item: any, apiKey?: string) => {
 export const generateButirSoal = async (item: any, apiKey?: string) => {
   const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
   
-  const prompt = `Buatlah 1 butir soal asesmen SD. 
+  const prompt = `Buatlah 1 butir soal asesmen SD Kelas ${item.kelas}. 
     Indikator: "${item.indikatorSoal}"
-    BENTUK SOAL WAJIB: "${item.bentukSoal}"
+    LEVEL KOGNITIF: "${item.kompetensi}"
+    BENTUK SOAL: "${item.bentukSoal}"
 
-    ATURAN KETAT:
+    ATURAN FORMAT WAJIB (PATEN):
     1. STIMULUS: Jika indikator menyebutkan tabel/gambar/teks, buat tabel Markdown (| Kolom |) yang rapi. 
-       - Pisahkan baris kosong sebelum dan sesudah tabel.
-       - Jika teks Arab, tulis dengan harakat lengkap.
-    
-    2. SOAL & PILIHAN: 
-       - DILARANG MENGGUNAKAN KATA "STIMULUS" dalam teks pertanyaan. Gunakan "tabel di atas", "bacaan tersebut", atau "kalimat di atas".
-       - Jika PILIHAN GANDA: Susun opsi A, B, C, D SECARA VERTIKAL (satu baris satu opsi, diawali huruf kapital dan titik).
-       - Jika MENJODOHKAN: Sajikan tabel pasangan yang menantang.
-       - Jika ISIAN/URAIAN: Berikan perintah yang jelas.
-
+       Gunakan sel pembuka dan penutup pipa (|) pada SETIAP baris tabel tanpa kecuali.
+    2. PILIHAN GANDA: 
+       - WAJIB disusun ke bawah (VERTIKAL).
+       - Satu baris HANYA berisi SATU opsi.
+       - Contoh Format:
+         A. Opsi satu
+         B. Opsi dua
+         C. Opsi tiga
+         D. Opsi empat
+       - DILARANG KERAS menggabungkan opsi dalam satu baris (Contoh: A. x B. y -> INI DILARANG).
     3. KUNCI: Berikan huruf atau jawaban murni saja.
 
     Output dalam JSON field: stimulus, soal, kunci.`;

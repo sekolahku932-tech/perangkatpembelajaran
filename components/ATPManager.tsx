@@ -229,7 +229,7 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
             <th>ALUR TUJUAN PEMBELAJARAN (ATP)</th>
             <th>MATERI</th>
             <th>AW</th>
-            <th>PROFIL</th>
+            <th>PROFIL LULUSAN</th>
             <th>ASESMEN</th>
           </tr>
         </thead>
@@ -300,7 +300,7 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
                 <th className="border-2 border-black px-2 text-left w-1/5">ALUR TUJUAN (ATP)</th>
                 <th className="border-2 border-black px-2 text-left">MATERI</th>
                 <th className="border-2 border-black w-10">AW</th>
-                <th className="border-2 border-black px-2 text-left">PROFIL PELAJAR</th>
+                <th className="border-2 border-black px-2 text-left">PROFIL LULUSAN</th>
                 <th className="border-2 border-black px-2 text-left">ASESMEN</th>
               </tr>
             </thead>
@@ -479,7 +479,7 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
         <div className="p-6 bg-slate-50 border-t border-slate-100 flex items-start gap-3">
            <Info size={16} className="text-blue-600 shrink-0 mt-0.5"/>
            <p className="text-[10px] text-slate-400 font-medium italic leading-relaxed">
-             *Gunakan tombol <b>Wand AI</b> untuk melengkapi Alur Tujuan, Dimensi Profil, dan Rencana Asesmen secara otomatis berdasarkan Tujuan Pembelajaran yang ada.
+             *Gunakan tombol <b>Wand AI</b> untuk melengkapi Alur Tujuan, Dimensi Profil Lulusan, dan Rencana Asesmen secara otomatis berdasarkan Tujuan Pembelajaran yang ada.
            </p>
         </div>
       </div>

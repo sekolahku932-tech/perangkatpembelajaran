@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Kelas, JurnalItem, MATA_PELAJARAN, SchoolSettings, AcademicYear, User, PromesItem, RPMItem, Fase } from '../types';
+import { Kelas, JurnalItem, MATA_PELAJARAN, SchoolSettings, AcademicYear, User, PromesItem, RPMItem } from '../types';
 import { 
   Plus, Trash2, Loader2, Cloud, Printer, CheckCircle2, AlertTriangle, 
-  BookOpen, Calendar, Wand2, Save, X, Eye, EyeOff, Search, BookText, FileDown,
-  Sparkles, RefreshCw, AlertCircle, Info, Lock
+  Wand2, Search, BookText, FileDown,
+  Sparkles, AlertCircle, Info, Lock
 } from 'lucide-react';
 import { db, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from '../services/firebase';
 import { GoogleGenAI } from "@google/genai";
@@ -41,6 +42,7 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
 
   const printRef = useRef<HTMLDivElement>(null);
 
+  // Kunci akses kelas jika user adalah guru kelas
   const isClassLocked = user.role === 'guru' && (user.teacherType === 'kelas' || (!user.teacherType && user.kelas !== '-' && user.kelas !== 'Multikelas'));
 
   useEffect(() => {
@@ -65,7 +67,6 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
     });
 
     const unsubYears = onSnapshot(collection(db, "academic_years"), (snap) => {
-      /* FIX: Changed doc.data() to d.data() because doc is an imported helper function, while d is the individual DocumentSnapshot from the collection results. */
       const yearList = snap.docs.map(d => ({ id: d.id, ...d.data() })) as AcademicYear[];
       setYears(yearList);
       const active = yearList.find(y => y.isActive);
@@ -112,18 +113,25 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
       const yearParts = activeYear.split('/');
       const yearStart = parseInt(yearParts[0]);
       const yearEnd = parseInt(yearParts[1]) || yearStart + 1;
-      const normalizedUserMapels = user.mapelDiampu.map(m => m.trim().toLowerCase());
+      
+      // Normalisasi mata pelajaran dari profil user
+      const normalizedUserMapels = (user.mapelDiampu || []).map(m => m.trim().toLowerCase());
 
       const relevantPromes = promesData.filter(p => {
-        const isMatchKelas = p.kelas === selectedKelas;
-        const isMatchMapel = normalizedUserMapels.includes(p.mataPelajaran.trim().toLowerCase());
+        const isMatchKelas = String(p.kelas).trim() === String(selectedKelas).trim();
+        const mapelTrimmed = (p.mataPelajaran || '').trim().toLowerCase();
+        
+        // Guru Kelas dapat menyinkronkan semua mapel di kelasnya, 
+        // Guru Mapel hanya mapel yang diampu.
+        const isMatchMapel = user.teacherType === 'kelas' ? true : normalizedUserMapels.includes(mapelTrimmed);
+        
         const hasSchedule = p.bulanPelaksanaan && p.bulanPelaksanaan.trim().length > 0;
         return isMatchKelas && isMatchMapel && hasSchedule;
       });
 
       if (relevantPromes.length === 0) {
         setMessage({ 
-          text: `Tidak ditemukan jadwal PROMES untuk Kelas ${selectedKelas} pada Mata Pelajaran Anda.`, 
+          text: `Tidak ditemukan jadwal PROMES untuk Kelas ${selectedKelas} pada Mata Pelajaran Anda. Pastikan PROMES sudah diisi jadwalnya (ceklis kalender).`, 
           type: 'info' 
         });
         setIsSyncing(false);
@@ -133,13 +141,14 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
       let createdCount = 0;
       
       for (const p of relevantPromes) {
+        // Urutkan tanggal pelaksanaan agar urutan pertemuan logis
         const datesArray = p.bulanPelaksanaan.split(',').filter(d => d.includes('|')).sort((a, b) => {
             const partA = a.split('|');
             const partB = b.split('|');
-            const mA = MONTH_MAP[partA[0]];
-            const mB = MONTH_MAP[partB[0]];
+            const mA = MONTH_MAP[partA[0].trim()];
+            const mB = MONTH_MAP[partB[0].trim()];
             if (mA !== mB) return mA - mB;
-            return parseInt(partA[2]) - parseInt(partB[2]);
+            return parseInt(partA[2].trim()) - parseInt(partB[2].trim());
         });
 
         let meetingIndex = 1;
@@ -153,25 +162,28 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
           
           if (monthIndex === undefined || isNaN(day)) continue;
           
+          // Tentukan tahun berdasarkan semester (Juli-Des = Tahun Mulai, Jan-Jun = Tahun Selesai)
           const year = monthIndex >= 6 ? yearStart : yearEnd;
           const isoDate = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
+          const baseMateri = p.materiPokok + (p.subMateri ? `: ${p.subMateri}` : '');
+          const displayMateri = datesArray.length > 1 
+            ? `${baseMateri} (Pertemuan ${meetingIndex})` 
+            : baseMateri;
+
+          // Pengecekan Duplikasi: Berdasarkan Tanggal, Mapel, dan Materi Spesifik
           const alreadyExists = jurnals.some(j => 
             j.tanggal === isoDate && 
             j.mataPelajaran.trim().toLowerCase() === p.mataPelajaran.trim().toLowerCase() && 
-            j.kelas === selectedKelas &&
-            j.userId === user.id
+            j.materi.trim().toLowerCase() === displayMateri.trim().toLowerCase() &&
+            j.kelas === selectedKelas
           );
 
           if (!alreadyExists) {
-            const baseMateri = p.materiPokok + (p.subMateri ? `: ${p.subMateri}` : '');
-            const displayMateri = datesArray.length > 1 
-              ? `${baseMateri} (Pertemuan ${meetingIndex})` 
-              : baseMateri;
-
+            // Cari referensi RPM untuk mendapatkan Praktik Pedagogis (Model Pembelajaran)
             const matchingRpm = rpmData.find(r => 
               r.kelas === selectedKelas && 
-              r.mataPelajaran === p.mataPelajaran &&
+              r.mataPelajaran.trim().toLowerCase() === p.mataPelajaran.trim().toLowerCase() &&
               (baseMateri.toLowerCase().includes(r.materi.toLowerCase()) || r.materi.toLowerCase().includes(baseMateri.toLowerCase()))
             );
 
@@ -195,10 +207,11 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
       }
       
       setMessage({ 
-        text: createdCount > 0 ? `Berhasil menyinkronkan ${createdCount} entri jurnal baru sesuai jadwal.` : 'Jurnal harian sudah lengkap sesuai jadwal PROMES.', 
+        text: createdCount > 0 ? `Berhasil menyinkronkan ${createdCount} entri jurnal baru dari PROMES.` : 'Jurnal harian sudah sinkron dengan jadwal PROMES saat ini.', 
         type: createdCount > 0 ? 'success' : 'info' 
       });
     } catch (e: any) {
+      console.error(e);
       setMessage({ text: 'Gagal sinkronisasi: ' + e.message, type: 'error' });
     } finally {
       setIsSyncing(false);
@@ -214,7 +227,7 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
         tahunPelajaran: activeYear,
         kelas: selectedKelas,
         tanggal: today,
-        mataPelajaran: user.mapelDiampu[0] || MATA_PELAJARAN[0],
+        mataPelajaran: (user.mapelDiampu && user.mapelDiampu.length > 0) ? user.mapelDiampu[0] : MATA_PELAJARAN[2],
         materi: '',
         detailKegiatan: '',
         praktikPedagogis: '',
@@ -251,7 +264,7 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
     
     const matchingRpm = rpmData.find(r => 
       r.kelas === item.kelas && 
-      r.mataPelajaran === item.mataPelajaran &&
+      r.mataPelajaran.trim().toLowerCase() === item.mataPelajaran.trim().toLowerCase() &&
       (baseMateri.includes(r.materi.toLowerCase().trim()) || r.materi.toLowerCase().trim().includes(baseMateri))
     );
 
@@ -266,7 +279,7 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
       if (matchingRpm) {
         prompt += `\nDATA REFERENSI RPM DITEMUKAN:
         Model/Metode: ${matchingRpm.praktikPedagogis}
-        Langkah 3M: ${matchingRpm.kegiatanAwal}, ${matchingRpm.kegiatanInti}, ${matchingRpm.kegiatanPenutup}
+        Langkah: ${matchingRpm.kegiatanAwal}, ${matchingRpm.kegiatanInti}, ${matchingRpm.kegiatanPenutup}
         
         INSTRUKSI KHUSUS: 
         1. Rangkum data RPM di atas menjadi narasi jurnal yang padat dalam 1 paragraf untuk DETAIL_KEGIATAN.
@@ -274,7 +287,7 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
       } else {
         prompt += `\nINSTRUKSI:
         1. Buat narasi jurnal umum profesional untuk DETAIL_KEGIATAN.
-        2. Field PEDAGOGIK: HANYA sebutkan nama satu model/metode yang relevan (contoh: 'Ceramah Plus', 'Problem Based Learning').`;
+        2. Field PEDAGOGIK: HANYA sebutkan nama satu model/metode yang relevan (contoh: 'Problem Based Learning').`;
       }
 
       prompt += `\nOutput JSON key: detail_kegiatan, pedagogik (HANYA NAMA MODEL/METODE SAJA).`;
@@ -390,7 +403,7 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
     URL.revokeObjectURL(url);
   };
 
-  const handlePrint = () => {
+  const handlePrintInternal = () => {
     const content = printRef.current?.innerHTML;
     const printWindow = window.open('', '_blank');
     if (printWindow) {
@@ -435,7 +448,7 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
              <button onClick={() => setIsPrintMode(false)} className="bg-slate-800 text-white px-6 py-2 rounded-xl text-xs font-black">KEMBALI</button>
              <button onClick={handleExportWord} className="bg-blue-600 text-white px-6 py-2 rounded-xl text-xs font-black flex items-center gap-2 shadow-sm"><FileDown size={16}/> UNDUH WORD</button>
            </div>
-           <button onClick={handlePrint} className="bg-emerald-600 text-white px-6 py-2 rounded-xl text-xs font-black shadow-sm flex items-center gap-2"><Printer size={16}/> CETAK PDF</button>
+           <button onClick={handlePrintInternal} className="bg-emerald-600 text-white px-6 py-2 rounded-xl text-xs font-black shadow-sm flex items-center gap-2"><Printer size={16}/> CETAK PDF</button>
         </div>
 
         <div className="no-print bg-amber-50 border border-amber-200 p-4 rounded-2xl mb-8 text-[10px] font-bold text-amber-800 flex items-center gap-3">
@@ -489,7 +502,7 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
             </tbody>
           </table>
           <div className="mt-16 grid grid-cols-2 text-center text-xs font-black uppercase font-sans break-inside-avoid">
-             <div><p>Mengetahui,</p><p>Kepala Sekolah</p><div className="h-24"></div><p className="border-b border-black inline-block min-w-[200px]">{settings.principalName}</p><p className="mt-1 font-normal">NIP. {settings.principalNip}</p></div>
+             <div><p>Mengetahui,</p><p>Kepala Sekolah</p><div className="h-24"></div><p className="border-b border-black inline-block min-w-[200px]">{settings.principalName}</p><p className="mt-1 font-normal">NIP. {settings.principalName}</p></div>
              <div><p>Bilato, ........................</p><p>Guru Kelas / Mata Pelajaran</p><div className="h-24"></div><p className="border-b border-black inline-block min-w-[200px]">{user.name}</p><p className="mt-1 font-normal">NIP. {user.nip}</p></div>
           </div>
         </div>
@@ -498,7 +511,7 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
   }
 
   return (
-    <div className="space-y-6 pb-20 animate-in fade-in duration-500 relative pb-20">
+    <div className="space-y-6 pb-20 animate-in fade-in duration-500 relative">
       {message && (
         <div className={`fixed top-24 right-8 z-[100] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border transition-all animate-in slide-in-from-right ${
           message.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 
@@ -597,7 +610,7 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
                     </td>
                     <td className="px-6 py-5 border-r border-slate-100">
                        <select className="w-full bg-transparent border-none text-[11px] font-bold focus:ring-0 p-0 text-slate-700" value={item.mataPelajaran} onChange={e => updateJurnal(item.id, 'mataPelajaran', e.target.value)}>
-                         {MATA_PELAJARAN.map(m => <option key={m}>{m}</option>)}
+                         {MATA_PELAJARAN.map(m => <option key={m} value={m}>{m}</option>)}
                        </select>
                     </td>
                     <td className="px-6 py-5 border-r border-slate-100">
