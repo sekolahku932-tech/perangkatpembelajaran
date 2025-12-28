@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Fase, CapaianPembelajaran, MATA_PELAJARAN, SchoolSettings, User } from '../types';
-import { Plus, Edit2, Trash2, Save, X, Loader2, Cloud, AlertTriangle, Eye, EyeOff, Printer, FileDown, AlertCircle, BookOpen } from 'lucide-react';
+import { Plus, Edit2, Trash2, Save, X, Loader2, Cloud, AlertTriangle, Eye, EyeOff, Printer, FileDown, AlertCircle, BookOpen, Lock } from 'lucide-react';
 import { db, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from '../services/firebase';
 
 interface CPManagerProps {
@@ -33,16 +33,26 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
     principalNip: '-'
   });
 
+  // Penguncian Fase bagi guru kelas: Guru tidak bisa merubah fase di luar penempatan kelasnya.
+  const isClassLocked = user.role === 'guru' && user.teacherType === 'kelas';
+
   useEffect(() => {
     if (user.role === 'guru') {
       if (user.mapelDiampu && user.mapelDiampu.length > 0) {
         setFilterMapel(user.mapelDiampu[0]);
       }
-      if (['1', '2'].includes(user.kelas)) setFilterFase(Fase.A);
-      else if (['3', '4'].includes(user.kelas)) setFilterFase(Fase.B);
-      else if (['5', '6'].includes(user.kelas)) setFilterFase(Fase.C);
+      
+      let targetFase = filterFase;
+      if (['1', '2'].includes(user.kelas)) targetFase = Fase.A;
+      else if (['3', '4'].includes(user.kelas)) targetFase = Fase.B;
+      else if (['5', '6'].includes(user.kelas)) targetFase = Fase.C;
+      
+      if (isClassLocked) {
+        setFilterFase(targetFase);
+        setFormData(prev => ({ ...prev, fase: targetFase }));
+      }
     }
-  }, [user]);
+  }, [user, isClassLocked]);
 
   useEffect(() => {
     setLoading(true);
@@ -114,55 +124,32 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
     link.href = url;
     link.download = `CP_${filterMapel}_${filterFase}.doc`;
     link.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleAddOrUpdate = async () => {
     if (!formData.kode || !formData.elemen || !formData.deskripsi) return;
-
     try {
       if (isEditing) {
-        const cpRef = doc(db, "cps", isEditing);
-        await updateDoc(cpRef, {
-          ...formData,
-          fase: filterFase,
-          mataPelajaran: filterMapel
-        });
+        await updateDoc(doc(db, "cps", isEditing), { ...formData, fase: filterFase, mataPelajaran: filterMapel });
         setIsEditing(null);
       } else {
-        await addDoc(collection(db, "cps"), {
-          fase: filterFase,
-          mataPelajaran: filterMapel,
-          kode: formData.kode,
-          elemen: formData.elemen,
-          deskripsi: formData.deskripsi
-        });
+        await addDoc(collection(db, "cps"), { fase: filterFase, mataPelajaran: filterMapel, kode: formData.kode, elemen: formData.elemen, deskripsi: formData.deskripsi });
       }
       setFormData({ ...formData, kode: '', elemen: '', deskripsi: '' });
-    } catch (error) {
-      console.error("Error saving to Firestore:", error);
-    }
+    } catch (error) { console.error(error); }
   };
 
-  const startEdit = (cp: CapaianPembelajaran) => {
-    setIsEditing(cp.id);
-    setFormData(cp);
-  };
+  const startEdit = (cp: CapaianPembelajaran) => { setIsEditing(cp.id); setFormData(cp); };
 
   const deleteCp = async () => {
     if (!deleteConfirm) return;
-    try {
-      const cpRef = doc(db, "cps", deleteConfirm);
-      await deleteDoc(cpRef);
-      setDeleteConfirm(null);
-    } catch (error) {
-      console.error("Error deleting from Firestore:", error);
-    }
+    try { await deleteDoc(doc(db, "cps", deleteConfirm)); setDeleteConfirm(null); } catch (error) { console.error(error); }
   };
 
   const filteredCps = cps.filter(cp => cp.fase === filterFase && cp.mataPelajaran === filterMapel);
   const availableMapel = user.role === 'admin' ? MATA_PELAJARAN : user.mapelDiampu;
 
-  // FIX: Completed the truncated handlePrint function and added missing JSX/export
   const handlePrint = () => {
     const content = printRef.current?.innerHTML;
     const printWindow = window.open('', '_blank');
@@ -175,12 +162,9 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
             <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
             <style>
               body { font-family: 'Inter', sans-serif; background: white; padding: 40px; }
-              @media print { 
-                .no-print { display: none !important; }
-                body { padding: 0; }
-              }
-              table { border-collapse: collapse; width: 100%; border: 2px solid black; }
-              th, td { border: 1px solid black; padding: 5px; }
+              @media print { .no-print { display: none !important; } body { padding: 0; } }
+              table { border-collapse: collapse; }
+              .break-inside-avoid { page-break-inside: avoid; }
             </style>
           </head>
           <body onload="setTimeout(() => { window.print(); window.close(); }, 500)">
@@ -197,10 +181,13 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
       <div className="bg-white p-12 min-h-screen text-slate-900 font-serif">
         <div className="no-print fixed top-6 right-6 flex gap-3 z-[300]">
           <button onClick={() => setIsPrintMode(false)} className="bg-slate-800 text-white px-6 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 shadow-2xl hover:bg-black transition-all">
-            <EyeOff size={16}/> KEMBALI
+            <EyeOff size={16} /> KEMBALI
+          </button>
+          <button onClick={handleExportWord} className="bg-blue-600 text-white px-6 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 shadow-2xl hover:bg-blue-700 transition-all">
+            <FileDown size={16} /> WORD
           </button>
           <button onClick={handlePrint} className="bg-rose-600 text-white px-6 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 shadow-2xl hover:bg-rose-700 transition-all">
-            <Printer size={16}/> CETAK PDF
+            <Printer size={16} /> CETAK PDF
           </button>
         </div>
 
@@ -214,26 +201,39 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
             </div>
           </div>
 
-          <table className="w-full border-collapse border-2 border-black text-[11px]">
+          <table className="w-full border-collapse border-2 border-black text-[10px]">
             <thead>
-              <tr className="bg-slate-50 h-12 uppercase font-black text-center">
-                <th className="border-2 border-black w-[5%]">NO</th>
-                <th className="border-2 border-black w-[15%]">KODE</th>
-                <th className="border-2 border-black w-[25%] text-left px-4">ELEMEN</th>
-                <th className="border-2 border-black text-left px-4">DESKRIPSI CAPAIAN PEMBELAJARAN</th>
+              <tr className="bg-slate-100 h-12 uppercase font-black text-center">
+                <th className="border-2 border-black w-10">NO</th>
+                <th className="border-2 border-black px-2 w-20">KODE</th>
+                <th className="border-2 border-black px-4 text-left w-48">ELEMEN</th>
+                <th className="border-2 border-black px-4 text-left">DESKRIPSI CAPAIAN PEMBELAJARAN</th>
               </tr>
             </thead>
             <tbody>
-              {filteredCps.map((cp, idx) => (
-                <tr key={cp.id}>
-                  <td className="border-2 border-black p-3 text-center font-bold">{idx + 1}</td>
-                  <td className="border-2 border-black p-3 text-center font-black">{cp.kode}</td>
-                  <td className="border-2 border-black p-3 font-bold uppercase">{cp.elemen}</td>
-                  <td className="border-2 border-black p-3 leading-relaxed text-justify">{cp.deskripsi}</td>
-                </tr>
-              ))}
+              {filteredCps.length === 0 ? (
+                <tr><td colSpan={4} className="border-2 border-black p-10 text-center italic text-slate-400">Belum ada data CP.</td></tr>
+              ) : (
+                filteredCps.map((cp, idx) => (
+                  <tr key={cp.id} className="break-inside-avoid">
+                    <td className="border-2 border-black p-3 text-center font-bold">{idx + 1}</td>
+                    <td className="border-2 border-black p-3 text-center font-black uppercase">{cp.kode}</td>
+                    <td className="border-2 border-black p-3 font-black uppercase leading-tight">{cp.elemen}</td>
+                    <td className="border-2 border-black p-3 leading-relaxed text-justify">{cp.deskripsi}</td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
+
+          <div className="mt-16 flex justify-between items-start text-xs px-12 font-sans uppercase font-black tracking-tight break-inside-avoid">
+             <div className="text-center w-72">
+                <p>Mengetahui,</p> <p>Kepala Sekolah</p> <div className="h-24"></div> <p className="border-b border-black inline-block min-w-[200px]">{settings.principalName}</p> <p className="no-underline mt-1 font-normal">NIP. {settings.principalNip}</p>
+             </div>
+             <div className="text-center w-72">
+                <p>Bilato, {new Date().toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p> <p>Guru Kelas/Mapel</p> <div className="h-24"></div> <p className="border-b border-black inline-block min-w-[200px]">{user?.name || '[Nama Guru]'}</p> <p className="no-underline mt-1 font-normal">NIP. {user?.nip || '...................'}</p>
+             </div>
+          </div>
         </div>
       </div>
     );
@@ -242,16 +242,18 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       {deleteConfirm && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[250] flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
           <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95">
             <div className="p-8 text-center">
-              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6 mx-auto"><AlertTriangle size={32} /></div>
+              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6 mx-auto">
+                <AlertTriangle size={32} />
+              </div>
               <h3 className="text-xl font-black text-slate-900 uppercase mb-2">Hapus CP</h3>
-              <p className="text-slate-500 font-medium text-sm">Apakah Anda yakin ingin menghapus Capaian Pembelajaran ini?</p>
+              <p className="text-slate-500 font-medium text-sm">Hapus data Capaian Pembelajaran ini dari database?</p>
             </div>
             <div className="p-4 bg-slate-50 flex gap-3">
               <button onClick={() => setDeleteConfirm(null)} className="flex-1 px-6 py-3 rounded-xl text-xs font-black text-slate-500 bg-white border border-slate-200">BATAL</button>
-              <button onClick={deleteCp} className="flex-1 px-6 py-3 rounded-xl text-xs font-black text-white bg-red-600">HAPUS</button>
+              <button onClick={deleteCp} className="flex-1 px-6 py-3 rounded-xl text-xs font-black text-white bg-red-600">YA, HAPUS</button>
             </div>
           </div>
         </div>
@@ -262,8 +264,8 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-lg"><BookOpen size={24} /></div>
             <div>
-              <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight leading-none">Capaian Pembelajaran (CP)</h2>
-              <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Data Kurikulum Nasional SD</p>
+              <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight leading-none">CAPAIAN PEMBELAJARAN (CP)</h2>
+              <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Status: Data Cloud Sinkron</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -271,79 +273,76 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
             <button onClick={handleExportWord} className="bg-blue-600 text-white px-6 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 hover:bg-blue-700 shadow-lg transition-all"><FileDown size={18} /> WORD</button>
           </div>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-6 rounded-[24px] border border-slate-100 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-6 rounded-[24px] border border-slate-100">
           <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Pilih Fase</label>
-            <select className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none" value={filterFase} onChange={(e) => setFilterFase(e.target.value as Fase)}>
+            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest flex items-center gap-1">Fase {isClassLocked && <Lock size={10} className="text-amber-500" />}</label>
+            <select className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none disabled:bg-slate-100" value={filterFase} disabled={isClassLocked} onChange={(e) => setFilterFase(e.target.value as Fase)}>
               {Object.values(Fase).map(f => <option key={f} value={f}>{f}</option>)}
             </select>
           </div>
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Pilih Mata Pelajaran</label>
-            <select className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none" value={filterMapel} onChange={(e) => setFilterMapel(e.target.value)}>
-              {availableMapel.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div className="p-6 bg-white border-2 border-dashed border-slate-200 rounded-[32px] space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <input className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-bold outline-none" placeholder="Kode CP (e.g. CP1)" value={formData.kode} onChange={e => setFormData({...formData, kode: e.target.value})} />
-            <input className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-bold outline-none uppercase md:col-span-2" placeholder="Nama Elemen" value={formData.elemen} onChange={e => setFormData({...formData, elemen: e.target.value})} />
-          </div>
-          <textarea className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs font-medium outline-none min-h-[100px]" placeholder="Deskripsi Capaian Pembelajaran" value={formData.deskripsi} onChange={e => setFormData({...formData, deskripsi: e.target.value})} />
-          <div className="flex justify-end gap-2">
-            {isEditing && <button onClick={() => { setIsEditing(null); setFormData({ kode: '', elemen: '', deskripsi: '' }); }} className="px-6 py-2.5 rounded-xl text-xs font-black text-slate-500 bg-slate-100">BATAL</button>}
-            <button onClick={handleAddOrUpdate} className="bg-blue-600 text-white px-8 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 hover:bg-blue-700 shadow-lg">
-              {isEditing ? <Save size={16}/> : <Plus size={16}/>} {isEditing ? 'UPDATE CP' : 'TAMBAH CP'}
-            </button>
-          </div>
+          <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Mapel</label><select className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none" value={filterMapel} onChange={(e) => setFilterMapel(e.target.value)}>{availableMapel.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
         </div>
       </div>
 
-      <div className="bg-white rounded-[32px] shadow-sm border border-slate-200 overflow-hidden min-h-[400px]">
-        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-           <div className="flex items-center gap-3">
-             <AlertCircle size={20} className="text-blue-600"/>
-             <h3 className="text-xs font-black uppercase tracking-widest text-slate-800">Daftar CP: {filterMapel} ({filterFase})</h3>
-           </div>
-           <div className="flex items-center gap-2 px-3 py-1 bg-white border border-slate-200 rounded-full text-[9px] font-black text-slate-400 uppercase">
-             <Cloud size={10}/> Data Cloud Aktif
-           </div>
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        <div className="xl:col-span-1 bg-white rounded-[32px] shadow-sm border border-slate-200 overflow-hidden">
+          <div className={`p-6 border-b border-slate-100 flex items-center justify-between transition-colors ${isEditing ? 'bg-amber-50' : 'bg-slate-50'}`}>
+            <div className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg ${isEditing ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'}`}>
+                {isEditing ? <Edit2 size={20} /> : <Plus size={20} />}
+              </div>
+              <h3 className="font-black text-slate-800 uppercase tracking-tight">{isEditing ? 'Edit Data CP' : 'Tambah CP Baru'}</h3>
+            </div>
+          </div>
+          <div className="p-6 space-y-4">
+            <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5 ml-1">Kode CP</label><input className="w-full border border-slate-200 rounded-xl p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500 transition-all uppercase" value={formData.kode} onChange={e => setFormData({ ...formData, kode: e.target.value })} placeholder="C1, B2, dst..." /></div>
+            <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5 ml-1">Elemen</label><input className="w-full border border-slate-200 rounded-xl p-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-blue-500 transition-all" value={formData.elemen} onChange={e => setFormData({ ...formData, elemen: e.target.value })} placeholder="Nama Elemen..." /></div>
+            <div><label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5 ml-1">Deskripsi CP</label><textarea className="w-full border border-slate-200 rounded-xl p-3 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 transition-all min-h-[200px]" value={formData.deskripsi} onChange={e => setFormData({ ...formData, deskripsi: e.target.value })} placeholder="Salin deskripsi CP di sini..." /></div>
+            <div className="flex gap-2 pt-2">
+              <button onClick={handleAddOrUpdate} className={`flex-1 text-white font-black py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 text-xs uppercase tracking-widest ${isEditing ? 'bg-amber-600' : 'bg-blue-600'}`}>
+                <Save size={18} /> {isEditing ? 'UPDATE' : 'SIMPAN'}
+              </button>
+              {isEditing && <button onClick={() => { setIsEditing(null); setFormData({ ...formData, kode: '', elemen: '', deskripsi: '' }); }} className="bg-slate-100 text-slate-600 p-4 rounded-xl"><X size={18} /></button>}
+            </div>
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest h-12">
-                <th className="px-6 py-2 w-[5%] text-center">No</th>
-                <th className="px-6 py-2 w-[10%] text-center">Kode</th>
-                <th className="px-6 py-2 w-[20%]">Elemen</th>
-                <th className="px-6 py-2 w-[50%]">Deskripsi</th>
-                <th className="px-6 py-2 w-[15%] text-center">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {loading ? (
-                <tr><td colSpan={5} className="py-32 text-center"><Loader2 className="animate-spin inline-block text-blue-600" /></td></tr>
-              ) : filteredCps.length === 0 ? (
-                <tr><td colSpan={5} className="py-32 text-center text-slate-300 font-bold uppercase text-xs tracking-widest">Belum ada data CP untuk filter ini</td></tr>
-              ) : filteredCps.map((cp, idx) => (
-                <tr key={cp.id} className="group hover:bg-slate-50/50 transition-colors align-top">
-                  <td className="px-6 py-6 text-center font-black text-slate-300">{idx + 1}</td>
-                  <td className="px-6 py-6 text-center"><span className="bg-slate-100 px-2 py-1 rounded text-[10px] font-black text-slate-600">{cp.kode}</span></td>
-                  <td className="px-6 py-6 font-black text-[10px] text-slate-900 uppercase leading-tight">{cp.elemen}</td>
-                  <td className="px-6 py-6 text-xs text-slate-600 leading-relaxed text-justify italic">{cp.deskripsi}</td>
-                  <td className="px-6 py-6 text-center">
-                    <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => startEdit(cp)} className="p-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-600 hover:text-white transition-all"><Edit2 size={16}/></button>
-                      <button onClick={() => setDeleteConfirm(cp.id)} className="p-2 text-red-600 bg-red-50 rounded-lg hover:bg-red-600 hover:text-white transition-all"><Trash2 size={16}/></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+
+        <div className="xl:col-span-2">
+          <div className="bg-white rounded-[32px] shadow-sm border border-slate-200 overflow-hidden min-h-[500px]">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest h-12">
+                    <th className="px-6 py-2 w-16 text-center">No</th>
+                    <th className="px-6 py-2 w-24">Kode</th>
+                    <th className="px-6 py-2 w-48">Elemen</th>
+                    <th className="px-6 py-2">Deskripsi CP</th>
+                    <th className="px-6 py-2 w-24 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {loading ? (
+                    <tr><td colSpan={5} className="py-20 text-center"><Loader2 className="animate-spin inline-block text-blue-600" /></td></tr>
+                  ) : filteredCps.length === 0 ? (
+                    <tr><td colSpan={5} className="py-32 text-center text-slate-300 font-bold uppercase text-xs tracking-widest">Belum ada data CP untuk filter ini</td></tr>
+                  ) : filteredCps.map((cp, idx) => (
+                    <tr key={cp.id} className="group hover:bg-slate-50 transition-colors align-top">
+                      <td className="px-6 py-6 text-center font-black text-slate-300">{idx + 1}</td>
+                      <td className="px-6 py-6 font-black text-xs text-blue-600 uppercase">{cp.kode}</td>
+                      <td className="px-6 py-6 font-black text-xs text-slate-900 uppercase leading-tight">{cp.elemen}</td>
+                      <td className="px-6 py-6 text-[11px] leading-relaxed text-slate-600 text-justify italic">"{cp.deskripsi}"</td>
+                      <td className="px-6 py-6 text-center">
+                        <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => startEdit(cp)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><Edit2 size={16} /></button>
+                          <button onClick={() => setDeleteConfirm(cp.id)} className="p-2 text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </div>

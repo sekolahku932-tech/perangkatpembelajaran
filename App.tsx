@@ -1,15 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  BookOpen, GraduationCap, School, ClipboardList, ListTree, LogOut, 
-  User as UserIcon, Shield, Settings, Users, CalendarDays, FileText, 
-  CalendarRange, Rocket, Menu, X, ChevronRight, Loader2, AlertTriangle,
-  BarChart3, LayoutDashboard, Code, BookText, PenTool, ClipboardCheck,
-  FileSearch
+  BookOpen, GraduationCap, School, ListTree, LogOut, 
+  User as UserIcon, Settings, Users, CalendarDays, FileText, 
+  CalendarRange, Rocket, Menu, ChevronRight, Loader2, AlertTriangle,
+  BarChart3, LayoutDashboard, Code, BookText, PenTool, ClipboardCheck
 } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import CPManager from './components/CPManager';
-import AnalisisManager from './components/AnalisisManager';
 import ATPManager from './components/ATPManager';
 import SettingsManager from './components/SettingsManager';
 import UserManager from './components/UserManager';
@@ -21,23 +19,21 @@ import AsesmenManager from './components/AsesmenManager';
 import JurnalManager from './components/JurnalManager';
 import LKPDManager from './components/LKPDManager';
 import EvaluasiManager from './components/EvaluasiManager';
-import DocumentManager from './components/DocumentManager';
 import AIAssistant from './components/AIAssistant';
 import LoginPage from './components/LoginPage';
 import { User } from './types';
-import { auth, db, onAuthStateChanged, signOut, doc, getDoc, onSnapshot } from './services/firebase';
+import { auth, db, onAuthStateChanged, signOut, doc, onSnapshot } from './services/firebase';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeMenu, setActiveMenu] = useState<'DASHBOARD' | 'CP' | 'ANALISIS' | 'ATP' | 'DOKUMEN' | 'SETTING' | 'USER' | 'EFEKTIF' | 'PROTA' | 'PROMES' | 'RPM' | 'LKPD' | 'ASESMEN_SUMATIF' | 'EVALUASI' | 'JURNAL'>('DASHBOARD');
+  const [activeMenu, setActiveMenu] = useState<'DASHBOARD' | 'CP' | 'ATP' | 'SETTING' | 'USER' | 'EFEKTIF' | 'PROTA' | 'PROMES' | 'RPM' | 'LKPD' | 'ASESMEN_SUMATIF' | 'EVALUASI' | 'JURNAL'>('DASHBOARD');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Gunakan listener onSnapshot agar data user sinkron real-time
         const unsubUser = onSnapshot(doc(db, "users", firebaseUser.uid), (snap) => {
           if (snap.exists()) {
             const userData = { id: firebaseUser.uid, ...snap.data() } as User;
@@ -72,10 +68,8 @@ const App: React.FC = () => {
 
   const navItems = [
     { id: 'DASHBOARD', label: 'Dashboard', icon: <LayoutDashboard size={20} />, color: 'text-slate-900', bg: 'bg-slate-100' },
-    { id: 'DOKUMEN', label: 'Analisis File (AI)', icon: <FileSearch size={20} />, color: 'text-indigo-600', bg: 'bg-indigo-50' },
     { id: 'EFEKTIF', label: 'Hari Efektif', icon: <CalendarDays size={20} />, color: 'text-indigo-600', bg: 'bg-indigo-50' },
     { id: 'CP', label: 'Capaian Pembelajaran', icon: <BookOpen size={20} />, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { id: 'ANALISIS', label: 'Analisis CP-TP', icon: <ClipboardList size={20} />, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     { id: 'ATP', label: 'Alur Tujuan (ATP)', icon: <ListTree size={20} />, color: 'text-amber-600', bg: 'bg-amber-50' },
     { id: 'PROTA', label: 'Program Tahunan', icon: <FileText size={20} />, color: 'text-violet-600', bg: 'bg-violet-50' },
     { id: 'PROMES', label: 'Program Semester', icon: <CalendarRange size={20} />, color: 'text-rose-600', bg: 'bg-rose-50' },
@@ -193,9 +187,7 @@ const App: React.FC = () => {
         <main className="flex-1 overflow-y-auto custom-scrollbar p-4 lg:p-8">
           <div className="max-w-7xl mx-auto">
             {activeMenu === 'DASHBOARD' && <Dashboard user={user} onNavigate={(id) => setActiveMenu(id)} />}
-            {activeMenu === 'DOKUMEN' && <DocumentManager user={user} />}
             {activeMenu === 'CP' && <CPManager user={user} />}
-            {activeMenu === 'ANALISIS' && <AnalisisManager user={user} />}
             {activeMenu === 'ATP' && <ATPManager user={user} />}
             {activeMenu === 'SETTING' && <SettingsManager user={user} />}
             {activeMenu === 'USER' && <UserManager user={user} />}
