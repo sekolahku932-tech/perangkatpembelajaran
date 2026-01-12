@@ -14,7 +14,7 @@ const getApiKey = (customKey?: string) => {
 };
 
 const DEFAULT_MODEL = 'gemini-3-flash-preview';
-const COMPLEX_MODEL = 'gemini-3-flash-preview'; 
+const COMPLEX_MODEL = 'gemini-3-pro-preview'; 
 
 export const startAIChat = async (systemInstruction: string, apiKey?: string) => {
   const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
@@ -66,25 +66,11 @@ export const analyzeCPToTP = async (cpContent: string, elemen: string, fase: str
 
 export const completeATPDetails = async (tp: string, materi: string, kelas: string, apiKey?: string) => {
   const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
-  
-  // PROMPT DIKETEATKAN PADA 8 DIMENSI KHUSUS
   const prompt = `Lengkapi detail ATP SD Kelas ${kelas}. TP: "${tp}" | Materi: "${materi}".
-  
-  ATURAN DIMENSI PROFIL:
-  Gunakan HANYA kombinasi dari 8 dimensi berikut untuk field 'dimensiOfProfil':
-  1. Keimanan & Ketakwaan
-  2. Kewargaan
-  3. Penalaran Kritis
-  4. Kreativitas
-  5. Kolaborasi
-  6. Kemandirian
-  7. Kesehatan
-  8. Komunikasi
-  
-  DILARANG menggunakan dimensi Profil Pelajar Pancasila standar nasional lainnya.`;
+  Gunakan 8 dimensi profil: Keimanan, Kewargaan, Penalaran Kritis, Kreativitas, Kolaborasi, Kemandirian, Kesehatan, Komunikasi.`;
 
   const response = await ai.models.generateContent({
-    model: COMPLEX_MODEL,
+    model: DEFAULT_MODEL,
     contents: prompt,
     config: {
       responseMimeType: "application/json",
@@ -126,24 +112,11 @@ export const recommendPedagogy = async (tp: string, alurAtp: string, materi: str
 
 export const generateRPMContent = async (tp: string, materi: string, kelas: string, praktikPedagogis: string, alokasiWaktu: string, jumlahPertemuan: number = 1, apiKey?: string) => {
   const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
-  
-  const prompt = `Susun Rencana Pembelajaran Mendalam (RPM) SD Kelas ${kelas}.
-  TUJUAN PEMBELAJARAN: "${tp}"
-  MATERI: "${materi}"
-  MODEL/STRATEGI: "${praktikPedagogis}"
-  JUMLAH SESI: ${jumlahPertemuan} pertemuan.
-
-  ATURAN PERMANEN WAJIB:
-  1. FILOSOFI: Pembelajaran HARUS mengintegrasikan prinsip: Berkesadaran (Mindful), Bermakna (Meaningful), dan Menggembirakan (Joyful). Sebutkan kata-kata ini dalam narasi langkah kerja.
-  2. MULTI-SESI: Anda HARUS menyusun rincian untuk SETIAP pertemuan (Pertemuan 1 sampai Pertemuan ${jumlahPertemuan}).
-  3. FORMAT FIELD: Di dalam field 'kegiatanAwal', 'kegiatanInti', dan 'kegiatanPenutup', gunakan penanda "Pertemuan 1:", "Pertemuan 2:", dst. untuk memisahkan rincian tiap sesi.
-  4. ALUR 3M:
-     - Memahami (Kegiatan Awal): Membangun koneksi dan kesadaran diri.
-     - Mengaplikasi (Kegiatan Inti): Praktik bermakna dan kolaboratif.
-     - Merefleksi (Kegiatan Penutup): Penguatan emosional dan kegembiraan belajar.
-
-  Hasilkan respon dalam JSON.`;
-  
+  const prompt = `Susun Rencana Pembelajaran Mendalam (RPM) SD Kelas ${kelas} DETAIL. 
+  TP: "${tp}", Materi: "${materi}". 
+  BUAT UNTUK ${jumlahPertemuan} PERTEMUAN.
+  Gunakan header 'Pertemuan 1:', 'Pertemuan 2:', dst di setiap field kegiatan. 
+  Struktur 3M.`;
   const response = await ai.models.generateContent({
     model: COMPLEX_MODEL,
     contents: prompt,
@@ -158,8 +131,7 @@ export const generateRPMContent = async (tp: string, materi: string, kelas: stri
           kegiatanAwal: { type: Type.STRING },
           kegiatanInti: { type: Type.STRING },
           kegiatanPenutup: { type: Type.STRING }
-        },
-        required: ["kegiatanAwal", "kegiatanInti", "kegiatanPenutup"]
+        }
       }
     }
   });
@@ -169,8 +141,16 @@ export const generateRPMContent = async (tp: string, materi: string, kelas: stri
 export const generateAssessmentDetails = async (tp: string, materi: string, kelas: string, apiKey?: string) => {
   const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
   const response = await ai.models.generateContent({
-    model: COMPLEX_MODEL,
-    contents: `Susun 3 rubrik asesmen (AWAL, PROSES, AKHIR) untuk SD: TP "${tp}"`,
+    model: DEFAULT_MODEL,
+    contents: `Susun 3 jenis instrumen asesmen LENGKAP (AWAL, PROSES, AKHIR) untuk SD Kelas ${kelas}. 
+    TP: "${tp}".
+    Materi: "${materi}".
+
+    INSTRUKSI KHUSUS FORMAT:
+    1. Pada field 'soalAtauTugas', Anda WAJIB menyusun daftar butir soal atau instruksi tugas secara VERTIKAL KE BAWAH menggunakan penomoran (1. ..., 2. ..., 3. ... dst).
+    2. Setiap butir soal HARUS dipisahkan oleh baris baru (newline) agar mudah dibaca.
+    3. Jika teknik adalah Tes Tertulis, buat minimal 5-10 soal yang variatif dan operasional sesuai level kelas siswa.
+    4. Pada field 'rubrikDetail', berikan kriteria penilaian untuk 4 level secara mendalam.`,
     config: { 
       responseMimeType: "application/json",
       responseSchema: {
@@ -178,9 +158,11 @@ export const generateAssessmentDetails = async (tp: string, materi: string, kela
         items: {
           type: Type.OBJECT,
           properties: {
-            kategori: { type: Type.STRING },
+            kategori: { type: Type.STRING, description: "AWAL / PROSES / AKHIR" },
             teknik: { type: Type.STRING },
             bentuk: { type: Type.STRING },
+            instruksi: { type: Type.STRING, description: "Instruksi umum pengerjaan" },
+            soalAtauTugas: { type: Type.STRING, description: "Daftar butir soal atau tugas yang disusun vertikal berurutan kebawah (1, 2, 3...)" },
             rubrikDetail: {
               type: Type.ARRAY,
               items: {
@@ -194,7 +176,8 @@ export const generateAssessmentDetails = async (tp: string, materi: string, kela
                 }
               }
             }
-          }
+          },
+          required: ["kategori", "teknik", "bentuk", "soalAtauTugas", "rubrikDetail"]
         }
       }
     }
@@ -204,35 +187,48 @@ export const generateAssessmentDetails = async (tp: string, materi: string, kela
 
 export const generateLKPDContent = async (rpm: any, apiKey?: string) => {
   const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
-  const count = rpm.jumlahPertemuan || 1;
   
-  const prompt = `Buat konten Lembar Kerja Peserta Didik (LKPD) SD secara LENGKAP untuk ${count} pertemuan.
-  Materi: "${rpm.materi}"
-  Tujuan Pembelajaran: "${rpm.tujuanPembelajaran}"
-  Fase/Kelas: ${rpm.fase}/Kelas ${rpm.kelas}
-  Model Pembelajaran: ${rpm.praktikPedagogis}
+  const refAwal = rpm.kegiatanAwal || "";
+  const refInti = rpm.kegiatanInti || "";
+  const refPenutup = rpm.kegiatanPenutup || "";
+  const refAsesmen = rpm.asesmenTeknik || "";
+  const count = rpm.jumlahPertemuan || 1;
 
-  INSTRUKSI WAJIB:
-  1. Karena LKPD ini untuk ${count} pertemuan, Anda HARUS memberikan rincian untuk SETIAP pertemuan di field 'materiRingkas', 'langkahKerja', 'tugasMandiri', dan 'refleksi'.
-  2. Gunakan penanda teks "Pertemuan 1:", "Pertemuan 2:", dst. di awal setiap blok teks pertemuan dalam field tersebut.
-  3. Pastikan tugas dan langkah kerja berkembang kesulitannya dari pertemuan awal hingga akhir.
-  4. 'petunjuk' berisi instruksi umum untuk seluruh pengerjaan LKPD.`;
+  const prompt = `Buatlah Lembar Kerja Peserta Didik (LKPD) SD untuk ${count} PERTEMUAN yang MENYELARASKAN data dari RPM berikut:
+  
+  TP: "${rpm.tujuanPembelajaran}"
+  Materi: "${rpm.materi}"
+  
+  REFERENSI LANGKAH 3M (Dari RPM):
+  1. Memahami: ${refAwal}
+  2. Mengaplikasi: ${refInti}
+  3. Merefleksi: ${refPenutup}
+  
+  REFERENSI ASESMEN:
+  ${refAsesmen}
+
+  INSTRUKSI KHUSUS MULTI-PERTEMUAN:
+  1. Karena ada ${count} pertemuan, Anda WAJIB menyusun konten untuk SETIAP pertemuan secara berurutan.
+  2. Gunakan awalan 'Pertemuan 1:', 'Pertemuan 2:', dst. di DALAM setiap field string (materiRingkas, langkahKerja, tugasMandiri, refleksi).
+  3. MATERI_RINGKAS: Adaptasi dari bagian 'Memahami' per pertemuan.
+  4. LANGKAH_KERJA: Adaptasi dari bagian 'Mengaplikasi' per pertemuan.
+  5. TUGAS_MANDIRI: Distribusikan butir soal/instrumen asesmen ke setiap pertemuan secara proporsional (Misal: Soal 1-5 di Pertemuan 1, Soal 6-10 di Pertemuan 2).
+  6. REFLEKSI: Adaptasi dari bagian 'Merefleksi' per pertemuan.`;
 
   const response = await ai.models.generateContent({
-    model: COMPLEX_MODEL,
+    model: DEFAULT_MODEL,
     contents: prompt,
     config: { 
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
         properties: {
-          petunjuk: { type: Type.STRING },
-          materiRingkas: { type: Type.STRING },
-          langkahKerja: { type: Type.STRING },
-          tugasMandiri: { type: Type.STRING },
-          refleksi: { type: Type.STRING }
-        },
-        required: ["petunjuk", "materiRingkas", "langkahKerja", "tugasMandiri", "refleksi"]
+          petunjuk: { type: Type.STRING, description: "Petunjuk umum belajar" },
+          materiRingkas: { type: Type.STRING, description: "Konten per pertemuan diawali label 'Pertemuan X:'" },
+          langkahKerja: { type: Type.STRING, description: "Konten per pertemuan diawali label 'Pertemuan X:'" },
+          tugasMandiri: { type: Type.STRING, description: "Konten per pertemuan diawali label 'Pertemuan X:'" },
+          refleksi: { type: Type.STRING, description: "Konten per pertemuan diawali label 'Pertemuan X:'" }
+        }
       }
     }
   });
@@ -242,16 +238,19 @@ export const generateLKPDContent = async (rpm: any, apiKey?: string) => {
 export const generateIndikatorSoal = async (item: any, apiKey?: string) => {
   const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
   
-  const prompt = `Berikan HANYA teks murni satu paragraf indikator soal AKM SD untuk Kelas ${item.kelas}. 
-    DILARANG menyertakan metadata, label, atau ulasan tambahan. 
-    Format WAJIB: "Disajikan..., peserta didik dapat...".
-    Context: TP "${item.tujuanPembelajaran}", Level "${item.kompetensi}", Bentuk "${item.bentukSoal}".
-    Tingkat kesulitan bahasa HARUS sesuai untuk anak SD Kelas ${item.kelas}.`;
+  const prompt = `Buatlah 1 kalimat Indikator Soal standar kurikulum untuk SD Kelas ${item.kelas}.
+  TP: "${item.tujuanPembelajaran}"
+  Level Kognitif: "${item.kompetensi}"
+  Bentuk Soal: "${item.bentukSoal}"
+
+  FORMAT WAJIB (Gunakan Kata Kerja Operasional yang tepat):
+  "Disajikan [teks bacaan/gambar/tabel/data/ilustrasi], peserta didik dapat [kata kerja operasional sesuai level] [materi spesifik] dengan benar."
+
+  Hanya berikan hasil kalimat indikatornya saja. Jangan gunakan kata 'stimulus'.`;
 
   const response = await ai.models.generateContent({
     model: DEFAULT_MODEL,
-    contents: prompt,
-    config: { temperature: 0.1 }
+    contents: prompt
   });
   return response.text?.trim() || "";
 };
@@ -259,40 +258,39 @@ export const generateIndikatorSoal = async (item: any, apiKey?: string) => {
 export const generateButirSoal = async (item: any, apiKey?: string) => {
   const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
   
-  const prompt = `Buatlah 1 butir soal asesmen SD Kelas ${item.kelas}. 
-    Indikator: "${item.indikatorSoal}"
-    LEVEL KOGNITIF: "${item.kompetensi}"
-    BENTUK SOAL: "${item.bentukSoal}"
+  const prompt = `Buatlah 1 butir soal SD Kelas ${item.kelas} berdasarkan Indikator: "${item.indikatorSoal}".
+  Level Kognitif: "${item.kompetensi}"
+  Bentuk Soal: "${item.bentukSoal}"
 
-    ATURAN FORMAT WAJIB (PATEN):
-    1. STIMULUS: Jika indikator menyebutkan tabel/gambar/teks, buat tabel Markdown (| Kolom |) yang rapi. 
-       Gunakan sel pembuka dan penutup pipa (|) pada SETIAP baris tabel tanpa kecuali.
-    2. PILIHAN GANDA: 
-       - WAJIB disusun ke bawah (VERTIKAL).
-       - Satu baris HANYA berisi SATU opsi.
-       - Contoh Format:
-         A. Opsi satu
-         B. Opsi dua
-         C. Opsi tiga
-         D. Opsi empat
-       - DILARANG KERAS menggabungkan opsi dalam satu baris (Contoh: A. x B. y -> INI DILARANG).
-    3. KUNCI: Berikan huruf atau jawaban murni saja.
+  INSTRUKSI KHUSUS FORMAT NARASI & VISUAL:
+  1. Jika bentuk 'Isian', Anda WAJIB membuat kalimat PERNYATAAN RUMPANG yang diakhiri titik-titik panjang. 
+     JANGAN GUNAKAN kalimat tanya seperti 'Berapakah...', 'Siapakah...'. 
+     Contoh yang BENAR: 'Jumlah bunga mawar yang dimiliki Siti adalah ..........'
+  2. Jika bentuk 'Pilihan Ganda Kompleks', Anda WAJIB memilih salah satu sub-tipe ini:
+     - TIPE BENAR-SALAH: Di field 'soal', buatlah tabel Markdown dengan kolom | Pernyataan | Benar | Salah |. Tambahkan instruksi "Berilah tanda centang (✓) pada kolom yang sesuai!".
+     - TIPE MULTI-SELECT: Di field 'soal', buatlah 5 pilihan (A, B, C, D, E) dengan kotak ceklis "[ ]" di depannya. Tambahkan instruksi "Pilihlah lebih dari satu jawaban yang benar!".
+  3. Jika bentuk 'Menjodohkan', buatlah tabel Markdown dengan 3 kolom: | Pernyataan (Kiri) | | Pilihan Jawaban (Kanan) |. 
+     - Kolom tengah HARUS dibiarkan kosong (atau beri titik-titik) untuk tempat menarik garis. 
+     - Pilihan jawaban di lajur kanan HARUS diacak (tidak linear dengan kiri).
+     - Tambahkan instruksi "Tariklah garis lurus untuk menghubungkan pernyataan di kiri dengan jawaban di kanan yang tepat!".
+  4. TEKS/BACAAN/TABEL: Wajib buat teks bacaan atau tabel data di field 'stimulus' (isi teknis) sesuai yang diminta indikator.
+  5. KUNCI: Berikan jawaban yang tepat.
 
-    Output dalam JSON field: stimulus, soal, kunci.`;
+  CATATAN PENTING: Dalam narasi soal, jangan pernah gunakan kata 'stimulus'. Gunakan kata 'teks', 'bacaan', 'gambar', atau 'tabel'.
+  Output JSON.`;
 
   const response = await ai.models.generateContent({
-    model: COMPLEX_MODEL,
+    model: DEFAULT_MODEL,
     contents: prompt,
     config: {
       responseMimeType: "application/json",
       responseSchema: {
         type: Type.OBJECT,
         properties: {
-          stimulus: { type: Type.STRING },
-          soal: { type: Type.STRING },
-          kunci: { type: Type.STRING }
-        },
-        required: ['stimulus', 'soal', 'kunci']
+          stimulus: { type: Type.STRING, description: "Teks atau Tabel pendukung (Bahan bacaan)" },
+          soal: { type: Type.STRING, description: "Pertanyaan, Pernyataan Rumpang, Tabel, atau Pilihan Ganda" },
+          kunci: { type: Type.STRING, description: "Jawaban benar" }
+        }
       }
     }
   });

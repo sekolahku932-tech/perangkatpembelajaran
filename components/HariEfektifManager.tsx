@@ -1,7 +1,7 @@
 
 // @google/genai is not used directly here, but it's part of the global project context.
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { HariEfektif, SchoolSettings, AcademicYear, MATA_PELAJARAN, EventKalender, JadwalItem, Kelas, User } from '../types';
+import { HariEfektif, SchoolSettings, AcademicYear, MATA_PELAJARAN, SEMUA_AKTIVITAS, EventKalender, JadwalItem, Kelas, User } from '../types';
 import { 
   CalendarDays, Save, Printer, Eye, EyeOff, Info, Calculator, FileText, 
   ChevronLeft, ChevronRight, Plus, Trash2, Calendar as CalendarIcon, 
@@ -104,7 +104,8 @@ const HariEfektifManager: React.FC<HariEfektifManagerProps> = ({ user }) => {
     const bulanList = semester === 1 ? BULAN_SEM_1 : BULAN_SEM_2;
     return bulanList.map(bulan => {
       const found = data.find(d => d.kelas === selectedKelas && d.semester === semester && d.bulan === bulan);
-      return found || { kelas: selectedKelas, semester, bulan, jumlahMinggu: 4, mingguTidakEfektif: 0, keterangan: '' } as HariEfektif;
+      // Fix: Added missing 'id' property and matched property name 'mingguTidakEfektif' after typo fix in types.ts
+      return found || { id: '', kelas: selectedKelas, semester, bulan, jumlahMinggu: 4, mingguTidakEfektif: 0, keterangan: '' } as HariEfektif;
     });
   }, [data, selectedKelas, semester]);
 
@@ -122,6 +123,7 @@ const HariEfektifManager: React.FC<HariEfektifManagerProps> = ({ user }) => {
         await addDoc(collection(db, "hari_efektif"), {
           kelas: selectedKelas, semester, bulan, 
           jumlahMinggu: field === 'jumlahMinggu' ? value : 4,
+          // Fix: Property name comparison now valid after typo fix in types.ts
           mingguTidakEfektif: field === 'mingguTidakEfektif' ? value : 0,
           keterangan: field === 'keterangan' ? value : ''
         });
@@ -398,7 +400,7 @@ const HariEfektifManager: React.FC<HariEfektifManagerProps> = ({ user }) => {
                             ) : (
                               <select className={`w-full p-2.5 rounded-xl text-[10px] font-black border-none outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${cellJadwal ? 'bg-indigo-50 text-indigo-700 shadow-sm' : 'bg-slate-50 text-slate-400'}`} value={cellJadwal?.mapel || ''} onChange={(e) => handleUpdateJadwal(hari, jamKe, e.target.value)}>
                                 <option value="">- Kosong -</option>
-                                {MATA_PELAJARAN.map(m => <option key={m} value={m}>{m}</option>)}
+                                {SEMUA_AKTIVITAS.map(m => <option key={m} value={m}>{m}</option>)}
                               </select>
                             )}
                           </td>

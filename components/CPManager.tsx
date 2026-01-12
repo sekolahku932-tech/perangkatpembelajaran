@@ -76,6 +76,12 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
     return () => { unsubSettings(); unsubscribe(); };
   }, []);
 
+  const sortedAndFilteredCps = useMemo(() => {
+    return cps
+      .filter(cp => cp.fase === filterFase && cp.mataPelajaran === filterMapel)
+      .sort((a, b) => (a.kode || '').localeCompare(b.kode || '', undefined, { numeric: true, sensitivity: 'base' }));
+  }, [cps, filterFase, filterMapel]);
+
   const handleExportWord = () => {
     const header = `
       <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -106,7 +112,7 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
           </tr>
         </thead>
         <tbody>
-          ${filteredCps.map((cp, idx) => `
+          ${sortedAndFilteredCps.map((cp, idx) => `
             <tr>
               <td class="text-center">${idx + 1}</td>
               <td class="text-center">${cp.kode}</td>
@@ -147,7 +153,6 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
     try { await deleteDoc(doc(db, "cps", deleteConfirm)); setDeleteConfirm(null); } catch (error) { console.error(error); }
   };
 
-  const filteredCps = cps.filter(cp => cp.fase === filterFase && cp.mataPelajaran === filterMapel);
   const availableMapel = user.role === 'admin' ? MATA_PELAJARAN : user.mapelDiampu;
 
   const handlePrint = () => {
@@ -211,10 +216,10 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
               </tr>
             </thead>
             <tbody>
-              {filteredCps.length === 0 ? (
+              {sortedAndFilteredCps.length === 0 ? (
                 <tr><td colSpan={4} className="border-2 border-black p-10 text-center italic text-slate-400">Belum ada data CP.</td></tr>
               ) : (
-                filteredCps.map((cp, idx) => (
+                sortedAndFilteredCps.map((cp, idx) => (
                   <tr key={cp.id} className="break-inside-avoid">
                     <td className="border-2 border-black p-3 text-center font-bold">{idx + 1}</td>
                     <td className="border-2 border-black p-3 text-center font-black uppercase">{cp.kode}</td>
@@ -265,7 +270,7 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
             <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-lg"><BookOpen size={24} /></div>
             <div>
               <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight leading-none">CAPAIAN PEMBELAJARAN (CP)</h2>
-              <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Status: Data Cloud Sinkron</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Status: Data Cloud Sinkron (Diurutkan sesuai Kode)</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -323,9 +328,9 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
                 <tbody className="divide-y divide-slate-100">
                   {loading ? (
                     <tr><td colSpan={5} className="py-20 text-center"><Loader2 className="animate-spin inline-block text-blue-600" /></td></tr>
-                  ) : filteredCps.length === 0 ? (
+                  ) : sortedAndFilteredCps.length === 0 ? (
                     <tr><td colSpan={5} className="py-32 text-center text-slate-300 font-bold uppercase text-xs tracking-widest">Belum ada data CP untuk filter ini</td></tr>
-                  ) : filteredCps.map((cp, idx) => (
+                  ) : sortedAndFilteredCps.map((cp, idx) => (
                     <tr key={cp.id} className="group hover:bg-slate-50 transition-colors align-top">
                       <td className="px-6 py-6 text-center font-black text-slate-300">{idx + 1}</td>
                       <td className="px-6 py-6 font-black text-xs text-blue-600 uppercase">{cp.kode}</td>
