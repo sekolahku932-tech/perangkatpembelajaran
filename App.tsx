@@ -5,7 +5,7 @@ import {
   User as UserIcon, Settings, Users, CalendarDays, FileText, 
   CalendarRange, Rocket, Menu, ChevronRight, Loader2, AlertTriangle,
   BarChart3, LayoutDashboard, Code, BookText, PenTool, ClipboardCheck,
-  ClipboardList, Lock, Key, ShieldAlert
+  ClipboardList, Lock, Key, ShieldAlert, Info, X, Save, Eye, EyeOff
 } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import CPManager from './components/CPManager';
@@ -24,7 +24,7 @@ import EvaluasiManager from './components/EvaluasiManager';
 import AIAssistant from './components/AIAssistant';
 import LoginPage from './components/LoginPage';
 import { User } from './types';
-import { auth, db, onAuthStateChanged, signOut, doc, onSnapshot } from './services/firebase';
+import { auth, db, onAuthStateChanged, signOut, doc, onSnapshot, setDoc } from './services/firebase';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -32,6 +32,12 @@ const App: React.FC = () => {
   const [activeMenu, setActiveMenu] = useState<'DASHBOARD' | 'CP' | 'ANALISIS' | 'ATP' | 'SETTING' | 'USER' | 'EFEKTIF' | 'PROTA' | 'PROMES' | 'RPM' | 'LKPD' | 'ASESMEN_SUMATIF' | 'EVALUASI' | 'JURNAL'>('DASHBOARD');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  
+  // State untuk Modal Profil Mandiri
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileFormData, setProfileFormData] = useState({ name: '', nip: '', apiKey: '' });
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [showKey, setShowKey] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -40,18 +46,25 @@ const App: React.FC = () => {
           if (snap.exists()) {
             const userData = { id: firebaseUser.uid, ...snap.data() } as User;
             setUser(userData);
+            setProfileFormData({
+              name: userData.name || '',
+              nip: userData.nip || '',
+              apiKey: userData.apiKey || ''
+            });
           } else {
-            setUser({ 
+            const newUser = { 
               id: firebaseUser.uid, 
               username: firebaseUser.email?.split('@')[0] || '', 
-              role: 'guru', 
-              teacherType: 'kelas',
-              name: firebaseUser.displayName || 'Guru Aktif', 
+              role: 'guru' as const, 
+              teacherType: 'kelas' as const,
+              name: firebaseUser.displayName || 'Guru Baru', 
               nip: '-', 
               kelas: '-', 
               mapelDiampu: [],
               apiKey: '' 
-            });
+            };
+            setUser(newUser);
+            setProfileFormData({ name: newUser.name, nip: newUser.nip, apiKey: '' });
           }
           setLoading(false);
         });
@@ -67,6 +80,24 @@ const App: React.FC = () => {
   const handleLogout = async () => {
     await signOut(auth);
     setShowLogoutConfirm(false);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!user) return;
+    setIsSavingProfile(true);
+    try {
+      await setDoc(doc(db, "users", user.id), {
+        name: profileFormData.name.toUpperCase(),
+        nip: profileFormData.nip,
+        apiKey: profileFormData.apiKey.trim()
+      }, { merge: true });
+      setShowProfileModal(false);
+      alert('Profil dan API Key berhasil diperbarui!');
+    } catch (e) {
+      alert('Gagal memperbarui profil.');
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   const navItems = [
@@ -99,14 +130,75 @@ const App: React.FC = () => {
     return <LoginPage />;
   }
 
-  // Pengecekan Kunci API: Jika tidak ada kunci, batasi akses kecuali untuk Admin yang ingin menyetel kunci.
-  const hasNoApiKey = !user.apiKey;
-  const isGuruBlocked = hasNoApiKey && user.role === 'guru';
-  const isAdminBlocked = hasNoApiKey && user.role === 'admin' && activeMenu !== 'USER' && activeMenu !== 'SETTING' && activeMenu !== 'DASHBOARD';
+  const hasNoApiKey = !user.apiKey || user.apiKey.trim().length < 5;
+  const isMenuAllowedWithoutKey = (menuId: string) => {
+    if (menuId === 'DASHBOARD') return true;
+    if (user.role === 'admin' && (menuId === 'USER' || menuId === 'SETTING')) return true;
+    return false;
+  };
+  const isCurrentMenuRestricted = hasNoApiKey && !isMenuAllowedWithoutKey(activeMenu);
 
   return (
     <div className="min-h-screen bg-slate-50 flex overflow-hidden">
       {user.apiKey && <AIAssistant user={user} />}
+
+      {/* Modal Pengaturan Profil & API Key */}
+      {showProfileModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[250] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95">
+            <div className="p-8 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-blue-600 text-white rounded-2xl shadow-lg">
+                  <UserIcon size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Profil Saya</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Update Data & API Key</p>
+                </div>
+              </div>
+              <button onClick={() => setShowProfileModal(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="p-8 space-y-5">
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Nama Lengkap</label>
+                <input className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-blue-600" value={profileFormData.name} onChange={e => setProfileFormData({...profileFormData, name: e.target.value})} />
+              </div>
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">NIP</label>
+                <input className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600" value={profileFormData.nip} onChange={e => setProfileFormData({...profileFormData, nip: e.target.value})} />
+              </div>
+              <div className="p-5 bg-indigo-50 border border-indigo-100 rounded-3xl space-y-3">
+                <label className="flex items-center gap-2 text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1">
+                  <Key size={14}/> Gemini API Key
+                </label>
+                <div className="relative">
+                  <input 
+                    type={showKey ? "text" : "password"}
+                    className="w-full bg-white border border-indigo-200 rounded-xl py-3 pl-4 pr-12 text-xs font-mono font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                    placeholder="AIzaSyB..."
+                    value={profileFormData.apiKey}
+                    onChange={e => setProfileFormData({...profileFormData, apiKey: e.target.value})}
+                  />
+                  <button onClick={() => setShowKey(!showKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-400">
+                    {showKey ? <EyeOff size={18}/> : <Eye size={18}/>}
+                  </button>
+                </div>
+                <p className="text-[9px] text-indigo-400 font-medium leading-relaxed italic px-1">
+                  *Gunakan API Key pribadi Anda untuk mengaktifkan seluruh fitur perangkat ajar berbasis AI.
+                </p>
+              </div>
+            </div>
+            <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
+              <button onClick={() => setShowProfileModal(false)} className="flex-1 px-6 py-4 rounded-2xl text-xs font-black text-slate-500 bg-white border border-slate-200">BATAL</button>
+              <button onClick={handleSaveProfile} disabled={isSavingProfile} className="flex-1 px-6 py-4 rounded-2xl text-xs font-black text-white bg-blue-600 shadow-xl shadow-blue-100 flex items-center justify-center gap-2 active:scale-95 transition-all">
+                {isSavingProfile ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} SIMPAN PERUBAHAN
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showLogoutConfirm && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
@@ -143,47 +235,55 @@ const App: React.FC = () => {
           <nav className="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar">
             {navItems.map((item) => {
               if (item.adminOnly && user.role !== 'admin') return null;
-              
-              // Menonaktifkan menu jika terblokir
-              const isDisabled = (isGuruBlocked && item.id !== 'DASHBOARD') || (isAdminBlocked && item.id !== 'USER' && item.id !== 'SETTING' && item.id !== 'DASHBOARD');
-
+              const isLocked = hasNoApiKey && !isMenuAllowedWithoutKey(item.id);
               return (
-                <div key={item.id} className="space-y-1">
+                <div key={item.id} className="relative group">
                   <button 
-                    disabled={isDisabled}
+                    disabled={isLocked}
                     onClick={() => { setActiveMenu(item.id as any); setIsSidebarOpen(false); }} 
-                    className={`w-full flex items-center justify-between p-3 rounded-xl text-xs font-bold transition-all group ${isDisabled ? 'opacity-40 cursor-not-allowed grayscale' : activeMenu === item.id ? `${item.bg} ${item.color} shadow-sm border border-slate-100` : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+                    className={`w-full flex items-center justify-between p-3 rounded-xl text-xs font-bold transition-all ${
+                      isLocked 
+                        ? 'opacity-30 cursor-not-allowed grayscale' 
+                        : activeMenu === item.id 
+                          ? `${item.bg} ${item.color} shadow-sm border border-slate-100` 
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
                   >
                     <div className="flex items-center gap-3">
-                      <span className={`${activeMenu === item.id ? item.color : 'text-slate-400'}`}>{isDisabled ? <Lock size={16}/> : item.icon}</span>
+                      <span className={`${activeMenu === item.id ? item.color : 'text-slate-400'}`}>
+                        {isLocked ? <Lock size={16} /> : item.icon}
+                      </span>
                       <span>{item.label}</span>
                     </div>
-                    {activeMenu === item.id && !isDisabled && <ChevronRight size={14} />}
+                    {activeMenu === item.id && !isLocked && <ChevronRight size={14} />}
                   </button>
                 </div>
               );
             })}
           </nav>
           <div className="p-4 border-t border-slate-100 shrink-0">
-            <div className="bg-slate-50 rounded-2xl p-4 flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400">
+            <button 
+              onClick={() => setShowProfileModal(true)}
+              className="w-full bg-slate-50 hover:bg-slate-100 rounded-2xl p-4 flex items-center gap-3 mb-4 transition-all group"
+            >
+              <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 group-hover:text-blue-600 group-hover:border-blue-200 transition-all">
                 <UserIcon size={20} />
               </div>
-              <div className="overflow-hidden">
-                <p className="text-xs font-black text-slate-900 truncate">{user.name}</p>
-                <p className="text-[10px] text-blue-600 font-bold uppercase">{user.role}</p>
+              <div className="overflow-hidden text-left">
+                <p className="text-xs font-black text-slate-900 truncate uppercase">{user.name}</p>
+                <div className="flex items-center gap-1">
+                  <div className={`w-1.5 h-1.5 rounded-full ${hasNoApiKey ? 'bg-red-500' : 'bg-emerald-500'}`}></div>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase">{hasNoApiKey ? 'No API Key' : 'Key Ready'}</p>
+                </div>
               </div>
-            </div>
+            </button>
             <button onClick={() => setShowLogoutConfirm(true)} className="w-full flex items-center justify-center gap-2 p-3 rounded-xl text-xs font-black text-red-600 hover:bg-red-50 transition-all border border-transparent hover:border-red-100">
               <LogOut size={18} /> KELUAR SISTEM
             </button>
-            <div className="mt-4 flex items-center justify-center gap-1.5 opacity-30">
-              <Code size={10} className="text-slate-400" />
-              <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">By Ariyanto Rahman</p>
-            </div>
           </div>
         </div>
       </aside>
+
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden h-screen">
         <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-4 shrink-0 lg:px-8">
           <div className="flex items-center gap-4">
@@ -198,22 +298,55 @@ const App: React.FC = () => {
             </div>
           </div>
         </header>
+
         <main className="flex-1 overflow-y-auto custom-scrollbar p-4 lg:p-8">
           <div className="max-w-7xl mx-auto">
-            {isGuruBlocked && activeMenu !== 'DASHBOARD' ? (
-              <div className="flex flex-col items-center justify-center py-32 text-center">
-                 <div className="w-24 h-24 bg-rose-100 text-rose-600 rounded-[40px] flex items-center justify-center mb-8 shadow-xl animate-bounce">
+            {isCurrentMenuRestricted ? (
+              <div className="flex flex-col items-center justify-center py-32 text-center animate-in fade-in zoom-in-95 duration-500">
+                 <div className="w-24 h-24 bg-rose-100 text-rose-600 rounded-[40px] flex items-center justify-center mb-8 shadow-xl shadow-rose-200/50">
                     <ShieldAlert size={48}/>
                  </div>
-                 <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-4">Akses Sistem Terbatas</h2>
+                 <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-4">Akses Sistem Dibatasi</h2>
                  <p className="text-slate-500 font-medium max-w-md leading-relaxed mb-8">
-                    Akun Anda belum memiliki <b>Gemini API Key</b> yang valid. Harap hubungi Admin Sekolah untuk melakukan konfigurasi kunci AI agar Anda dapat mengakses seluruh fitur perangkat pembelajaran.
+                    Akun Anda belum dikonfigurasi dengan <b>Gemini API Key</b> mandiri. Sesuai kebijakan hosting, fitur perangkat pembelajaran memerlukan kunci masing-masing user untuk beroperasi.
                  </p>
-                 <button onClick={() => setActiveMenu('DASHBOARD')} className="bg-slate-900 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest">KEMBALI KE DASHBOARD</button>
+                 <div className="bg-white border border-slate-200 p-6 rounded-3xl shadow-sm mb-8 text-left max-w-md w-full">
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                       <Info size={14} className="text-blue-500"/> Langkah Perbaikan:
+                    </h4>
+                    <ul className="space-y-3 text-[11px] font-bold text-slate-600">
+                       <li className="flex gap-3">
+                          <span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">1</span>
+                          <span>Klik tombol <b>Input API Key Saya</b> di bawah ini.</span>
+                       </li>
+                       <li className="flex gap-3">
+                          <span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">2</span>
+                          <span>Tempelkan Gemini API Key pribadi Anda yang valid.</span>
+                       </li>
+                       <li className="flex gap-3">
+                          <span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">3</span>
+                          <span>Halaman akan otomatis memuat seluruh fitur perangkat.</span>
+                       </li>
+                    </ul>
+                 </div>
+                 <div className="flex flex-col sm:flex-row gap-3">
+                    <button 
+                      onClick={() => setActiveMenu('DASHBOARD')}
+                      className="px-8 py-4 rounded-2xl text-xs font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 transition-all"
+                    >
+                        KEMBALI KE DASHBOARD
+                    </button>
+                    <button 
+                      onClick={() => setShowProfileModal(true)}
+                      className="bg-blue-600 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 flex items-center gap-2"
+                    >
+                        <Key size={16}/> INPUT API KEY SAYA
+                    </button>
+                 </div>
               </div>
             ) : (
               <>
-                {activeMenu === 'DASHBOARD' && <Dashboard user={user} onNavigate={(id) => setActiveMenu(id)} />}
+                {activeMenu === 'DASHBOARD' && <Dashboard user={user} onNavigate={(id) => setActiveMenu(id)} onOpenProfile={() => setShowProfileModal(true)} />}
                 {activeMenu === 'CP' && <CPManager user={user} />}
                 {activeMenu === 'ANALISIS' && <AnalisisManager user={user} />}
                 {activeMenu === 'ATP' && <ATPManager user={user} />}

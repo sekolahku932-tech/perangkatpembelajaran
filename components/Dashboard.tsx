@@ -12,9 +12,10 @@ import { User } from '../types';
 interface DashboardProps {
   user: User;
   onNavigate: (menu: any) => void;
+  onOpenProfile?: () => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
+const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate, onOpenProfile }) => {
   const [stats, setStats] = useState({
     cp: 0,
     analisis: 0,
@@ -50,8 +51,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
           count = snap.docs.filter(doc => {
             const data = doc.data();
             const matchKelas = data.kelas === user.kelas;
-            const matchMapel = user.mapelDiampu.includes(data.mataPelajaran || data.mapel);
-            if (coll.key === 'cp') return user.mapelDiampu.includes(data.mataPelajaran);
+            const matchMapel = (user.mapelDiampu || []).includes(data.mataPelajaran || data.mapel);
+            if (coll.key === 'cp') return (user.mapelDiampu || []).includes(data.mataPelajaran);
             return matchKelas || matchMapel;
           }).length;
         }
@@ -87,29 +88,24 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
-      {/* Banner Peringatan API Key */}
-      {!user.apiKey && (
+      {/* Banner Peringatan API Key - Sekarang dengan tombol set mandiri untuk semua user */}
+      {(!user.apiKey || user.apiKey.length < 5) && (
         <div className="bg-amber-50 border-2 border-amber-200 rounded-[32px] p-6 flex flex-col md:flex-row items-center gap-6 shadow-xl shadow-amber-900/5 animate-in slide-in-from-top-4 duration-1000">
           <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
             <AlertTriangle size={32} />
           </div>
           <div className="flex-1 text-center md:text-left">
-            <h3 className="text-amber-900 font-black uppercase text-sm tracking-tight mb-1">Peringatan Kuota AI</h3>
+            <h3 className="text-amber-900 font-black uppercase text-sm tracking-tight mb-1">Fitur AI Belum Aktif</h3>
             <p className="text-amber-700 text-xs font-medium leading-relaxed">
-              Anda belum menyertakan <b>API Key Gemini</b> kustom. Saat ini sistem menggunakan kuota publik sekolah yang mungkin terbatas atau lebih lambat. 
-              {user.role === 'admin' 
-                ? ' Segera lengkapi kunci Anda di menu Manajemen User untuk performa AI yang lebih stabil.' 
-                : ' Harap hubungi Admin Sekolah untuk mendaftarkan API Key pribadi Anda agar fitur asisten AI bekerja maksimal.'}
+              Anda belum memasukkan <b>Gemini API Key</b> pribadi. Sesuai kebijakan hosting individu, Anda wajib menggunakan kunci API sendiri agar asisten AI dan seluruh generator perangkat dapat berfungsi dengan lancar.
             </p>
           </div>
-          {user.role === 'admin' && (
-            <button 
-              onClick={() => onNavigate('USER')}
-              className="bg-amber-600 hover:bg-amber-700 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg active:scale-95"
-            >
-              <Key size={14} /> Atur Kunci Sekarang
-            </button>
-          )}
+          <button 
+            onClick={onOpenProfile}
+            className="bg-amber-600 hover:bg-amber-700 text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg active:scale-95"
+          >
+            <Key size={14} /> Atur Kunci Sekarang
+          </button>
         </div>
       )}
 
@@ -118,20 +114,20 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
           <LayoutDashboard size={200} />
         </div>
         <div className="relative z-10 max-w-2xl">
-          <div className="flex items-center gap-3 mb-6">
+          <div className="flex flex-wrap items-center gap-3 mb-6">
             <div className="px-4 py-1.5 bg-blue-500 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
               <Cloud size={12} /> Cloud Aktif
             </div>
             <div className="px-4 py-1.5 bg-emerald-500 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
               <CheckCircle2 size={12} /> {user.role === 'admin' ? 'Administrator' : `Guru Kelas ${user.kelas}`}
             </div>
-            {user.apiKey ? (
+            {user.apiKey && user.apiKey.length > 5 ? (
               <div className="px-4 py-1.5 bg-indigo-500 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                <Key size={12} /> Personal API Key
+                <Key size={12} /> Personal Key Active
               </div>
             ) : (
-              <div className="px-4 py-1.5 bg-slate-700 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                <Users size={12} /> Shared Quota
+              <div className="px-4 py-1.5 bg-rose-500 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                <Lock size={12} /> Key Required
               </div>
             )}
           </div>
@@ -185,7 +181,7 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
              <div className="flex items-center justify-between">
                 <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Akses Mapel</span>
                 <div className="flex flex-wrap gap-1 justify-end max-w-[200px]">
-                  {user.mapelDiampu.map(m => (
+                  {(user.mapelDiampu || []).map(m => (
                     <span key={m} className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[9px] font-bold">{m}</span>
                   ))}
                 </div>
