@@ -136,46 +136,66 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
 
   const splitByMeeting = (text: string, count: number) => {
     if (!text) return Array(count).fill('');
+    
+    // Pattern untuk mendeteksi header pertemuan (Pertemuan 1, Pertemuan 2, dsb)
     const pattern = /Pertemuan\s*\d+\s*:?/gi;
-    const parts = text.split(pattern);
-    if (parts[0]?.trim() === '') parts.shift();
-    const result = Array(count).fill('');
-    for (let i = 0; i < count; i++) {
-      result[i] = (parts[i] || '').trim();
+    
+    // Cari semua posisi di mana pattern muncul
+    const matches = Array.from(text.matchAll(pattern));
+    
+    // Jika tidak ada match, tapi diminta > 1 pertemuan, mungkin AI tidak memberikan header.
+    // Kembalikan seluruh teks di elemen pertama.
+    if (matches.length === 0) {
+      const result = Array(count).fill('');
+      result[0] = text.trim();
+      return result;
     }
-    return result;
+
+    const parts: string[] = [];
+    for (let i = 0; i < matches.length; i++) {
+      const start = matches[i].index! + matches[i][0].length;
+      const end = (i + 1 < matches.length) ? matches[i + 1].index : text.length;
+      parts.push(text.substring(start, end).trim());
+    }
+
+    // Pastikan hasil array memiliki panjang sesuai count
+    const finalResult = Array(count).fill('');
+    for (let i = 0; i < count; i++) {
+      finalResult[i] = (parts[i] || '').trim();
+    }
+    return finalResult;
   };
 
   const processFilosofiTags = (content: string, useHtmlBadge = true) => {
     const mapping = [
-      { key: 'Berkesadaran', regex: /Mindful|Berkesadaran/gi },
-      { key: 'Bermakna', regex: /Meaningful|Bermakna/gi },
-      { key: 'Menggembirakan', regex: /Joyful|Menggembirakan/gi }
+      { key: 'Berkesadaran', regex: /\[Berkesadaran\]|Berkesadaran/gi, color: 'bg-indigo-100 text-indigo-900 border-indigo-300' },
+      { key: 'Bermakna', regex: /\[Bermakna\]|Bermakna/gi, color: 'bg-emerald-100 text-emerald-900 border-emerald-300' },
+      { key: 'Menggembirakan', regex: /\[Menggembirakan\]|Menggembirakan/gi, color: 'bg-rose-100 text-rose-900 border-rose-300' }
     ];
     
     let text = content;
-    let foundTags = new Set<string>();
+    let foundTags = new Set<{key: string, color: string}>();
 
     mapping.forEach(m => {
-      if (m.regex.test(text)) foundTags.add(m.key);
-      const cleanupRegexes = [
-        new RegExp(`\\s*(?:yang\\s+)?\\(?\\s*(?:${m.regex.source})\\s*\\)?\\.?`, 'gi'),
-        new RegExp(`\\s*${m.regex.source}\\s*\\.?`, 'gi')
-      ];
-      cleanupRegexes.forEach(r => text = text.replace(r, ' '));
+      if (m.regex.test(text)) {
+        foundTags.add({ key: m.key, color: m.color });
+        // Hapus tag mentah dari teks agar tidak double
+        text = text.replace(m.regex, '').trim();
+      }
     });
 
-    text = text.replace(/\s+/g, ' ').replace(/\s*\)\s*/g, ' ').replace(/\s*yang\s*$/i, '').replace(/\.{2,}/g, '.').replace(/\.+$/, '').trim();
-    if (text.length > 0) text += '.';
+    // Pembersihan teks sisa dari pembersihan regex
+    text = text.replace(/\s+/g, ' ').replace(/\s*yang\s*$/i, '').replace(/\.{2,}/g, '.').replace(/\.+$/, '').trim();
+    if (text.length > 0 && !text.endsWith('.')) text += '.';
 
     if (foundTags.size > 0) {
       if (useHtmlBadge) {
         const badgeHtml = Array.from(foundTags).map(tag => 
-          `<span class="ml-1 px-1.5 py-0.5 bg-amber-100 text-amber-900 font-black rounded border border-amber-300 inline-block uppercase text-[8px] leading-none tracking-tighter">${tag}</span>`
+          `<span class="ml-2 px-2 py-0.5 ${tag.color} font-black rounded-lg border inline-block uppercase text-[8px] leading-none tracking-tight shadow-sm">${tag.key}</span>`
         ).join('');
         return `${text} ${badgeHtml}`;
       } else {
-        const badgeText = ` [${Array.from(foundTags).join(', ')}]`;
+        const badgeText = ` [${Array.from(foundTags).map(t => t.key).join(', ')}]`;
         return `${text}${badgeText}`;
       }
     }
@@ -186,17 +206,18 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
     if (!text) return '-';
     let processedText = text;
     if (cleanMeetingTags) processedText = text.replace(/Pertemuan\s*\d+\s*:?\s*/gi, '');
-    const cleaningRegex = /^(\d+[\.]|\-|\*|•)\s*/;
-    let rawLines = processedText.split(/\n+/);
+    
+    // Pecah berdasarkan baris atau penomoran (1., 2., dst)
+    const rawLines = processedText.split(/\n/);
     let validLines: string[] = [];
+    
     rawLines.forEach(line => {
         const trimmed = line.trim();
         if (!trimmed) return;
-        const inlineParts = trimmed.split(/(?=\s\d+\.\s)/g);
-        inlineParts.forEach(part => {
-            const cleaned = part.trim().replace(cleaningRegex, '').trim();
-            if (cleaned.length > 0) validLines.push(cleaned);
-        });
+        
+        // Bersihkan nomor di awal baris (misal "1. ", "2) ", "- ")
+        const cleaned = trimmed.replace(/^(\d+[\.\)]|\-|\*|•)\s*/, '').trim();
+        if (cleaned.length > 0) validLines.push(cleaned);
     });
 
     if (validLines.length === 0) return '-';
@@ -256,7 +277,7 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
     const penutupParts = splitByMeeting(rpm.kegiatanPenutup, count);
 
     const renderListForWord = (text: string) => {
-      const parts = text.split(/\n+/).map(l => l.replace(/^(\d+[\.]|\-|\*|•)\s*/, '').trim()).filter(l => l.length > 0);
+      const parts = text.split(/\n/).map(l => l.replace(/^(\d+[\.\)]|\-|\*|•)\s*/, '').trim()).filter(l => l.length > 0);
       return parts.map((p, i) => `<div style="margin-bottom: 5px; text-align: justify;">${i+1}. ${processFilosofiTags(p, false)}</div>`).join('');
     };
 
@@ -364,13 +385,21 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
       { key: DIMENSI_PROFIL[6], words: ['kesehatan', 'jasmani', 'sehat', 'olahraga', 'fisik'] },                    
       { key: DIMENSI_PROFIL[7], words: ['komunikasi', 'bahasa', 'bicara', 'presentasi', 'interaksi'] }                    
     ];
-    mapping.forEach(m => { if (m.words.some(word => rawText.includes(word))) selectedDimensi.push(m.key); });
+    
+    mapping.forEach(m => { 
+      if (m.words.some(word => rawText.includes(word))) {
+        selectedDimensi.push(m.key);
+      }
+    });
+
+    const limitedDimensi = selectedDimensi.slice(0, 3);
+
     try {
       await updateDoc(doc(db, "rpm", id), {
         atpId, tujuanPembelajaran: atp.tujuanPembelajaran, materi: atp.materi, subMateri: atp.subMateri,
-        alokasiWaktu: promes?.alokasiWaktu || atp.alokasiWaktu, asesmenAwal: atp.asesmenAwal, dimensiProfil: selectedDimensi
+        alokasiWaktu: promes?.alokasiWaktu || atp.alokasiWaktu, asesmenAwal: atp.asesmenAwal, dimensiProfil: limitedDimensi
       });
-      setMessage({ text: 'Sync Berhasil!', type: 'success' });
+      setMessage({ text: 'Sync Berhasil! (Maks 3 Dimensi)', type: 'success' });
     } catch (e) { console.error(e); }
   };
 
@@ -599,7 +628,7 @@ const RPMManager: React.FC<RPMManagerProps> = ({ user }) => {
                           <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Alokasi Waktu</label><div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col gap-1"><span className="text-xs font-black text-slate-800">{currentRpm?.alokasiWaktu || '0'} JP Total</span><span className="text-[10px] font-bold text-blue-600">Terdistribusi ke {currentRpm?.jumlahPertemuan || 1} sesi</span></div></div>
                         </div>
                       </div>
-                      <div className="bg-slate-50/50 p-6 rounded-[32px] border border-slate-200 shadow-inner"><label className="block text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest ml-1">Dimensi Profil (DPL)</label><div className="grid grid-cols-1 gap-y-3">{DIMENSI_PROFIL.map((dimensi, idx) => {const currentDimensi = currentRpm?.dimensiProfil || []; const isChecked = currentDimensi.includes(dimensi); return (<label key={dimensi} className="flex items-start gap-2 cursor-pointer group"><input type="checkbox" className="hidden" checked={isChecked} onChange={() => {const newDimensi = isChecked ? currentDimensi.filter(d => d !== dimensi) : [...currentDimensi, dimensi]; updateRPM(isEditing!, 'dimensiProfil', newDimensi);}} /><div className={`mt-0.5 transition-all p-0.5 rounded border ${isChecked ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-300'}`}>{isChecked ? <CheckSquare size={14} className="text-white" /> : <div className="w-3.5 h-3.5" />}</div><div className="flex flex-col"><span className={`text-[8px] font-black uppercase ${isChecked ? 'text-blue-600' : 'text-slate-300'}`}>DPL {idx + 1}</span><span className={`text-[10px] font-bold leading-tight ${isChecked ? 'text-slate-900' : 'text-slate-400'}`}>{dimensi}</span></div></label>);})}</div></div>
+                      <div className="bg-slate-50/50 p-6 rounded-[32px] border border-slate-200 shadow-inner"><label className="block text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest ml-1">Dimensi Profil (DPL)</label><div className="grid grid-cols-1 gap-y-3">{DIMENSI_PROFIL.map((dimensi, idx) => {const currentDimensi = currentRpm?.dimensiProfil || []; const isChecked = currentDimensi.includes(dimensi); return (<label key={dimensi} className="flex items-start gap-2 cursor-pointer group"><input type="checkbox" className="hidden" checked={isChecked} onChange={() => {const newDimensi = isChecked ? currentDimensi.filter(d => d !== dimensi) : [...currentDimensi, dimensi]; updateRPM(isEditing!, 'dimensiProfil', newDimensi);}} /><div className={`mt-0.5 transition-all p-0.5 rounded border ${isChecked ? 'bg-blue-600 border-blue-600' : 'bg-white border-slate-300'}`}>{isChecked ? <CheckSquare size={14} className="text-white" /> : <div className="w-3.5 h-3.5" />}</div><div className="flex flex-col"><span className={`text-[7px] font-black uppercase leading-none ${isChecked ? 'text-blue-600' : 'text-slate-300'}`}>DPL {idx + 1}</span><span className={`text-[9.5px] font-bold leading-tight ${isChecked ? 'text-slate-900' : 'text-slate-400'}`}>{dimensi}</span></div></label>);})}</div></div>
                     </div>
                   </div>
                   

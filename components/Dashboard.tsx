@@ -4,7 +4,7 @@ import {
   BookOpen, ListTree, FileText, 
   CalendarRange, Rocket, Users, GraduationCap, 
   LayoutDashboard, Cloud, CheckCircle2, ArrowRight,
-  BarChart3, Code, ClipboardList
+  BarChart3, Code, ClipboardList, AlertTriangle, Key
 } from 'lucide-react';
 import { db, collection, onSnapshot } from '../services/firebase';
 import { User } from '../types';
@@ -87,6 +87,32 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
+      {/* Banner Peringatan API Key */}
+      {!user.apiKey && (
+        <div className="bg-amber-50 border-2 border-amber-200 rounded-[32px] p-6 flex flex-col md:flex-row items-center gap-6 shadow-xl shadow-amber-900/5 animate-in slide-in-from-top-4 duration-1000">
+          <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
+            <AlertTriangle size={32} />
+          </div>
+          <div className="flex-1 text-center md:text-left">
+            <h3 className="text-amber-900 font-black uppercase text-sm tracking-tight mb-1">Peringatan Kuota AI</h3>
+            <p className="text-amber-700 text-xs font-medium leading-relaxed">
+              Anda belum menyertakan <b>API Key Gemini</b> kustom. Saat ini sistem menggunakan kuota publik sekolah yang mungkin terbatas atau lebih lambat. 
+              {user.role === 'admin' 
+                ? ' Segera lengkapi kunci Anda di menu Manajemen User untuk performa AI yang lebih stabil.' 
+                : ' Harap hubungi Admin Sekolah untuk mendaftarkan API Key pribadi Anda agar fitur asisten AI bekerja maksimal.'}
+            </p>
+          </div>
+          {user.role === 'admin' && (
+            <button 
+              onClick={() => onNavigate('USER')}
+              className="bg-amber-600 hover:bg-amber-700 text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg active:scale-95"
+            >
+              <Key size={14} /> Atur Kunci Sekarang
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="bg-slate-900 rounded-[40px] p-8 md:p-12 text-white relative overflow-hidden shadow-2xl">
         <div className="absolute top-0 right-0 p-12 opacity-10 scale-150 rotate-12">
           <LayoutDashboard size={200} />
@@ -99,6 +125,15 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate }) => {
             <div className="px-4 py-1.5 bg-emerald-500 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
               <CheckCircle2 size={12} /> {user.role === 'admin' ? 'Administrator' : `Guru Kelas ${user.kelas}`}
             </div>
+            {user.apiKey ? (
+              <div className="px-4 py-1.5 bg-indigo-500 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                <Key size={12} /> Personal API Key
+              </div>
+            ) : (
+              <div className="px-4 py-1.5 bg-slate-700 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                <Users size={12} /> Shared Quota
+              </div>
+            )}
           </div>
           <h1 className="text-3xl md:text-4xl font-black mb-4 leading-tight">
             Selamat Datang, <span className="text-blue-400">{user.name}</span>

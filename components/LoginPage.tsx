@@ -30,11 +30,12 @@ const LoginPage: React.FC = () => {
     // Pemetaan ke format email Firebase (sama dengan UserManager)
     let email = cleanUsername.includes('@') ? cleanUsername : `${cleanUsername}@sdn5bilato.sch.id`;
     
-    // Logika Password: Jika kurang dari 6 karakter, otomatis digandakan (karena Firebase minimal 6)
-    // Ini harus sama persis dengan logika saat mendaftarkan Guru di UserManager
+    // Logika Password: Jika kurang dari 6 karakter, lakukan padding hingga minimal 6 karakter
+    // Hal ini karena Firebase membutuhkan minimal 6 karakter untuk password.
     let pwd = cleanPassword;
     if (pwd.length < 6) {
-      pwd = pwd + pwd;
+      // Mengulang password asli sampai minimal 6 karakter (misal: "12" -> "121212")
+      pwd = cleanPassword.repeat(Math.ceil(6 / cleanPassword.length));
     }
 
     try {
@@ -43,11 +44,11 @@ const LoginPage: React.FC = () => {
     } catch (err: any) {
       console.error("Login Error:", err.code, err.message);
       if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        setError('Username atau Password salah. Pastikan data sudah didaftarkan oleh Admin.');
+        setError('Akses ditolak: Username atau Password salah. Hubungi Admin jika Anda belum terdaftar.');
       } else if (err.code === 'auth/network-request-failed') {
-        setError('Gagal terhubung ke internet. Periksa koneksi Anda.');
+        setError('Koneksi internet bermasalah. Periksa jaringan Anda.');
       } else {
-        setError('Kesalahan sistem Cloud: ' + err.message);
+        setError('Sistem Sibuk: ' + (err.message || 'Coba lagi nanti.'));
       }
     } finally {
       setLoading(false);

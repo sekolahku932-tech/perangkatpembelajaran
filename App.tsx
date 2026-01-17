@@ -49,7 +49,8 @@ const App: React.FC = () => {
               name: firebaseUser.displayName || 'Guru Aktif', 
               nip: '-', 
               kelas: '-', 
-              mapelDiampu: [] 
+              mapelDiampu: [],
+              apiKey: '' 
             });
           }
           setLoading(false);

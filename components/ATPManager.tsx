@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Fase, Kelas, ATPItem, AnalisisCP, CapaianPembelajaran, MATA_PELAJARAN, SchoolSettings, User } from '../types';
+import { Fase, Kelas, ATPItem, AnalisisCP, CapaianPembelajaran, MATA_PELAJARAN, SchoolSettings, User, DIMENSI_PROFIL } from '../types';
 import { Plus, Trash2, Sparkles, Loader2, Save, Eye, EyeOff, Search, CheckCircle2, X, AlertTriangle, RefreshCcw, Info, ClipboardCopy, Cloud, DownloadCloud, FileDown, Printer, Edit2, Wand2, Lock, ListTree, Copy, AlertCircle } from 'lucide-react';
 import { completeATPDetails } from '../services/geminiService';
 import { db, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from '../services/firebase';
@@ -152,16 +152,23 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
     try {
       const suggestions = await completeATPDetails(item.tujuanPembelajaran, item.materi, item.kelas, user.apiKey);
       if (suggestions) {
+        // Pembersihan tambahan dimensi profil untuk memastikan hanya 3 jika AI memberikan lebih
+        let dimensions = suggestions.dimensiOfProfil || '';
+        const parts = dimensions.split(',').map((p: string) => p.trim()).filter((p: string) => p.length > 0);
+        if (parts.length > 3) {
+            dimensions = parts.slice(0, 3).join(', ');
+        }
+
         await updateDoc(doc(db, "atp", id), {
           alurTujuanPembelajaran: suggestions.alurTujuan,
           alokasiWaktu: suggestions.alokasiWaktu,
-          dimensiProfilLulusan: suggestions.dimensiOfProfil,
+          dimensiProfilLulusan: dimensions,
           asesmenAwal: suggestions.asesmenAwal,
           asesmenProses: suggestions.asesmenProses,
           asesmenAkhir: suggestions.asesmenAkhir,
           sumberBelajar: suggestions.sumberBelajar
         });
-        setMessage({ text: 'Detail ATP berhasil dilengkapi oleh AI.', type: 'success' });
+        setMessage({ text: 'Detail ATP berhasil dilengkapi (Maks 3 Dimensi).', type: 'success' });
       }
     } catch (err) {
       setMessage({ text: 'Gagal menghubungi AI. Periksa kuota API Key.', type: 'error' });
@@ -359,7 +366,7 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
 
       {deleteConfirmId && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[250] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95">
+          <div className="bg-white rounded-[32px] shadow-2xl w-full max-sm overflow-hidden animate-in zoom-in-95">
             <div className="p-8 text-center">
               <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6 mx-auto"><AlertTriangle size={32} /></div>
               <h3 className="text-xl font-black text-slate-900 uppercase mb-2">Hapus ATP</h3>
@@ -415,7 +422,7 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[2000px]">
             <thead>
-              <tr className="bg-slate-900 text-white text-[10px] font-black h-16 uppercase tracking-widest">
+              <tr className="bg-slate-900 text-white text-[10px] font-black h-12 uppercase tracking-widest">
                 <th className="px-6 py-4 w-16 text-center">No</th>
                 <th className="px-6 py-4 w-72">Elemen & CP</th>
                 <th className="px-6 py-4 w-64">Tujuan Pembelajaran (TP)</th>
@@ -479,7 +486,7 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
         <div className="p-6 bg-slate-50 border-t border-slate-100 flex items-start gap-3">
            <Info size={16} className="text-blue-600 shrink-0 mt-0.5"/>
            <p className="text-[10px] text-slate-400 font-medium italic leading-relaxed">
-             *Gunakan tombol <b>Wand AI</b> untuk melengkapi Alur Tujuan, Dimensi Profil Lulusan, dan Rencana Asesmen secara otomatis berdasarkan Tujuan Pembelajaran yang ada.
+             *Gunakan tombol <b>Wand AI</b> untuk melengkapi Alur Tujuan, Dimensi Profil Lulusan, dan Rencana Asesmen secara otomatis berdasarkan Tujuan Pembelajaran yang ada. Dimensi profil kini dibatasi maksimal 3 pilihan saja.
            </p>
         </div>
       </div>

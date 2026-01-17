@@ -65,7 +65,11 @@ const UserManager: React.FC<UserManagerProps> = ({ user }) => {
     try {
       const userEmail = `${cleanUsername}@sdn5bilato.sch.id`;
       let userPwd = cleanPassword || '';
-      if (!isEditing && userPwd.length < 6) userPwd = userPwd + userPwd;
+      
+      // Logika Padding Password (harus sinkron dengan LoginPage)
+      if (!isEditing && userPwd.length < 6) {
+        userPwd = userPwd.repeat(Math.ceil(6 / userPwd.length));
+      }
 
       const userPayload = {
         username: cleanUsername,
