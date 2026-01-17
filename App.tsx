@@ -42,15 +42,17 @@ const App: React.FC = () => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
+        // Mendengarkan perubahan dokumen user secara real-time
         const unsubUser = onSnapshot(doc(db, "users", firebaseUser.uid), (snap) => {
           if (snap.exists()) {
             const userData = { id: firebaseUser.uid, ...snap.data() } as User;
             setUser(userData);
-            setProfileFormData({
-              name: userData.name || '',
-              nip: userData.nip || '',
-              apiKey: userData.apiKey || ''
-            });
+            // Sinkronkan form data hanya jika modal tidak sedang terbuka (menghindari overwrite saat ngetik)
+            setProfileFormData(prev => ({
+              name: userData.name || prev.name,
+              nip: userData.nip || prev.nip,
+              apiKey: userData.apiKey || prev.apiKey
+            }));
           } else {
             const newUser = { 
               id: firebaseUser.uid, 
@@ -64,7 +66,6 @@ const App: React.FC = () => {
               apiKey: '' 
             };
             setUser(newUser);
-            setProfileFormData({ name: newUser.name, nip: newUser.nip, apiKey: '' });
           }
           setLoading(false);
         });
@@ -86,15 +87,17 @@ const App: React.FC = () => {
     if (!user) return;
     setIsSavingProfile(true);
     try {
+      const cleanKey = profileFormData.apiKey.trim();
       await setDoc(doc(db, "users", user.id), {
         name: profileFormData.name.toUpperCase(),
         nip: profileFormData.nip,
-        apiKey: profileFormData.apiKey.trim()
+        apiKey: cleanKey
       }, { merge: true });
+      
       setShowProfileModal(false);
-      alert('Profil dan API Key berhasil diperbarui!');
+      alert('API Key Pribadi Berhasil Diaktifkan! Sistem sekarang menggunakan kuota Anda.');
     } catch (e) {
-      alert('Gagal memperbarui profil.');
+      alert('Gagal memperbarui profil: ' + (e as Error).message);
     } finally {
       setIsSavingProfile(false);
     }
@@ -121,16 +124,14 @@ const App: React.FC = () => {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
         <Loader2 className="animate-spin text-blue-600 mb-4" size={48} />
-        <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Memvalidasi Akses Cloud...</p>
+        <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Sinkronisasi Cloud...</p>
       </div>
     );
   }
 
-  if (!user) {
-    return <LoginPage />;
-  }
+  if (!user) return <LoginPage />;
 
-  const hasNoApiKey = !user.apiKey || user.apiKey.trim().length < 5;
+  const hasNoApiKey = !user.apiKey || user.apiKey.trim().length < 10;
   const isMenuAllowedWithoutKey = (menuId: string) => {
     if (menuId === 'DASHBOARD') return true;
     if (user.role === 'admin' && (menuId === 'USER' || menuId === 'SETTING')) return true;
@@ -142,58 +143,35 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-slate-50 flex overflow-hidden">
       {user.apiKey && <AIAssistant user={user} />}
 
-      {/* Modal Pengaturan Profil & API Key */}
+      {/* Modal Profil & API Key */}
       {showProfileModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[250] flex items-center justify-center p-4">
           <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95">
             <div className="p-8 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-blue-600 text-white rounded-2xl shadow-lg">
-                  <UserIcon size={20} />
-                </div>
+                <div className="p-2.5 bg-blue-600 text-white rounded-2xl shadow-lg"><UserIcon size={20} /></div>
                 <div>
-                  <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Profil Saya</h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Update Data & API Key</p>
+                  <h3 className="text-lg font-black text-slate-900 uppercase">Profil & API Key</h3>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Update Akses AI Mandiri</p>
                 </div>
               </div>
-              <button onClick={() => setShowProfileModal(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all">
-                <X size={24} />
-              </button>
+              <button onClick={() => setShowProfileModal(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all"><X size={24} /></button>
             </div>
             <div className="p-8 space-y-5">
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Nama Lengkap</label>
-                <input className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-blue-600" value={profileFormData.name} onChange={e => setProfileFormData({...profileFormData, name: e.target.value})} />
-              </div>
-              <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">NIP</label>
-                <input className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-600" value={profileFormData.nip} onChange={e => setProfileFormData({...profileFormData, nip: e.target.value})} />
-              </div>
+              <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Nama Lengkap</label><input className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-blue-600" value={profileFormData.name} onChange={e => setProfileFormData({...profileFormData, name: e.target.value})} /></div>
               <div className="p-5 bg-indigo-50 border border-indigo-100 rounded-3xl space-y-3">
-                <label className="flex items-center gap-2 text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1">
-                  <Key size={14}/> Gemini API Key
-                </label>
+                <label className="flex items-center gap-2 text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1"><Key size={14}/> Gemini API Key (Versi Flash)</label>
                 <div className="relative">
-                  <input 
-                    type={showKey ? "text" : "password"}
-                    className="w-full bg-white border border-indigo-200 rounded-xl py-3 pl-4 pr-12 text-xs font-mono font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-                    placeholder="AIzaSyB..."
-                    value={profileFormData.apiKey}
-                    onChange={e => setProfileFormData({...profileFormData, apiKey: e.target.value})}
-                  />
-                  <button onClick={() => setShowKey(!showKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-400">
-                    {showKey ? <EyeOff size={18}/> : <Eye size={18}/>}
-                  </button>
+                  <input type={showKey ? "text" : "password"} className="w-full bg-white border border-indigo-200 rounded-xl py-3 pl-4 pr-12 text-xs font-mono font-bold focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="AIzaSyB..." value={profileFormData.apiKey} onChange={e => setProfileFormData({...profileFormData, apiKey: e.target.value})} />
+                  <button onClick={() => setShowKey(!showKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-400">{showKey ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
                 </div>
-                <p className="text-[9px] text-indigo-400 font-medium leading-relaxed italic px-1">
-                  *Gunakan API Key pribadi Anda untuk mengaktifkan seluruh fitur perangkat ajar berbasis AI.
-                </p>
+                <p className="text-[9px] text-indigo-400 font-medium leading-relaxed italic">Sistem otomatis menggunakan model <b>Flash 3</b> yang lebih ringan dan memiliki kuota gratis lebih besar daripada versi Pro.</p>
               </div>
             </div>
             <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
               <button onClick={() => setShowProfileModal(false)} className="flex-1 px-6 py-4 rounded-2xl text-xs font-black text-slate-500 bg-white border border-slate-200">BATAL</button>
-              <button onClick={handleSaveProfile} disabled={isSavingProfile} className="flex-1 px-6 py-4 rounded-2xl text-xs font-black text-white bg-blue-600 shadow-xl shadow-blue-100 flex items-center justify-center gap-2 active:scale-95 transition-all">
-                {isSavingProfile ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} SIMPAN PERUBAHAN
+              <button onClick={handleSaveProfile} disabled={isSavingProfile} className="flex-1 px-6 py-4 rounded-2xl text-xs font-black text-white bg-blue-600 shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all">
+                {isSavingProfile ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} AKTIFKAN KUNCI
               </button>
             </div>
           </div>
@@ -204,9 +182,7 @@ const App: React.FC = () => {
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
           <div className="bg-white rounded-[32px] shadow-2xl w-full max-sm overflow-hidden animate-in zoom-in-95">
             <div className="p-8 text-center">
-              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6 mx-auto">
-                <AlertTriangle size={32} />
-              </div>
+              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6 mx-auto"><AlertTriangle size={32} /></div>
               <h3 className="text-xl font-black text-slate-900 uppercase mb-2">Konfirmasi Keluar</h3>
               <p className="text-slate-500 font-medium text-sm">Apakah Anda yakin ingin keluar dari sistem database cloud?</p>
             </div>
@@ -223,9 +199,7 @@ const App: React.FC = () => {
         <div className="flex flex-col h-full">
           <div className="p-6 border-b border-slate-100 shrink-0">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-blue-600 rounded-xl text-white shadow-lg">
-                <School size={24} />
-              </div>
+              <div className="p-2.5 bg-blue-600 rounded-xl text-white shadow-lg"><School size={24} /></div>
               <div>
                 <h1 className="text-sm font-black text-slate-900 leading-none uppercase">SDN 5 BILATO</h1>
                 <p className="text-[10px] text-blue-600 font-bold uppercase mt-1">Database Cloud</p>
@@ -241,18 +215,10 @@ const App: React.FC = () => {
                   <button 
                     disabled={isLocked}
                     onClick={() => { setActiveMenu(item.id as any); setIsSidebarOpen(false); }} 
-                    className={`w-full flex items-center justify-between p-3 rounded-xl text-xs font-bold transition-all ${
-                      isLocked 
-                        ? 'opacity-30 cursor-not-allowed grayscale' 
-                        : activeMenu === item.id 
-                          ? `${item.bg} ${item.color} shadow-sm border border-slate-100` 
-                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                    }`}
+                    className={`w-full flex items-center justify-between p-3 rounded-xl text-xs font-bold transition-all ${isLocked ? 'opacity-30 cursor-not-allowed grayscale' : activeMenu === item.id ? `${item.bg} ${item.color} shadow-sm border border-slate-100` : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
                   >
                     <div className="flex items-center gap-3">
-                      <span className={`${activeMenu === item.id ? item.color : 'text-slate-400'}`}>
-                        {isLocked ? <Lock size={16} /> : item.icon}
-                      </span>
+                      <span className={`${activeMenu === item.id ? item.color : 'text-slate-400'}`}>{isLocked ? <Lock size={16} /> : item.icon}</span>
                       <span>{item.label}</span>
                     </div>
                     {activeMenu === item.id && !isLocked && <ChevronRight size={14} />}
@@ -262,18 +228,13 @@ const App: React.FC = () => {
             })}
           </nav>
           <div className="p-4 border-t border-slate-100 shrink-0">
-            <button 
-              onClick={() => setShowProfileModal(true)}
-              className="w-full bg-slate-50 hover:bg-slate-100 rounded-2xl p-4 flex items-center gap-3 mb-4 transition-all group"
-            >
-              <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 group-hover:text-blue-600 group-hover:border-blue-200 transition-all">
-                <UserIcon size={20} />
-              </div>
+            <button onClick={() => setShowProfileModal(true)} className="w-full bg-slate-50 hover:bg-slate-100 rounded-2xl p-4 flex items-center gap-3 mb-4 transition-all group">
+              <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 group-hover:text-blue-600 group-hover:border-blue-200 transition-all"><UserIcon size={20} /></div>
               <div className="overflow-hidden text-left">
                 <p className="text-xs font-black text-slate-900 truncate uppercase">{user.name}</p>
                 <div className="flex items-center gap-1">
                   <div className={`w-1.5 h-1.5 rounded-full ${hasNoApiKey ? 'bg-red-500' : 'bg-emerald-500'}`}></div>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase">{hasNoApiKey ? 'No API Key' : 'Key Ready'}</p>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase">{hasNoApiKey ? 'No API Key' : 'Flash Key Aktif'}</p>
                 </div>
               </div>
             </button>
@@ -290,11 +251,8 @@ const App: React.FC = () => {
             <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-xl"><Menu size={24} /></button>
             <div className="flex items-center gap-2 text-slate-400 text-[10px] font-black uppercase tracking-widest">
               <GraduationCap size={16} className="text-blue-500" />
-              <span>Menu</span>
-              <ChevronRight size={12} />
-              <span className="text-slate-900">
-                {navItems.find(i => i.id === activeMenu)?.label}
-              </span>
+              <span>Menu</span><ChevronRight size={12} />
+              <span className="text-slate-900">{navItems.find(i => i.id === activeMenu)?.label}</span>
             </div>
           </div>
         </header>
@@ -303,45 +261,22 @@ const App: React.FC = () => {
           <div className="max-w-7xl mx-auto">
             {isCurrentMenuRestricted ? (
               <div className="flex flex-col items-center justify-center py-32 text-center animate-in fade-in zoom-in-95 duration-500">
-                 <div className="w-24 h-24 bg-rose-100 text-rose-600 rounded-[40px] flex items-center justify-center mb-8 shadow-xl shadow-rose-200/50">
-                    <ShieldAlert size={48}/>
-                 </div>
-                 <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-4">Akses Sistem Dibatasi</h2>
+                 <div className="w-24 h-24 bg-rose-100 text-rose-600 rounded-[40px] flex items-center justify-center mb-8 shadow-xl shadow-rose-200/50"><ShieldAlert size={48}/></div>
+                 <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-4">Akses Terkunci (Limit 0)</h2>
                  <p className="text-slate-500 font-medium max-w-md leading-relaxed mb-8">
-                    Akun Anda belum dikonfigurasi dengan <b>Gemini API Key</b> mandiri. Sesuai kebijakan hosting, fitur perangkat pembelajaran memerlukan kunci masing-masing user untuk beroperasi.
+                    Terdeteksi upaya pemanggilan model <b>Gemini Pro</b> yang dibatasi. Sesuai kebijakan hosting, harap gunakan <b>Gemini API Key</b> Anda sendiri untuk mengaktifkan model <b>Flash 3</b> yang lebih handal.
                  </p>
                  <div className="bg-white border border-slate-200 p-6 rounded-3xl shadow-sm mb-8 text-left max-w-md w-full">
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                       <Info size={14} className="text-blue-500"/> Langkah Perbaikan:
-                    </h4>
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Info size={14} className="text-blue-500"/> Solusi Perbaikan:</h4>
                     <ul className="space-y-3 text-[11px] font-bold text-slate-600">
-                       <li className="flex gap-3">
-                          <span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">1</span>
-                          <span>Klik tombol <b>Input API Key Saya</b> di bawah ini.</span>
-                       </li>
-                       <li className="flex gap-3">
-                          <span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">2</span>
-                          <span>Tempelkan Gemini API Key pribadi Anda yang valid.</span>
-                       </li>
-                       <li className="flex gap-3">
-                          <span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">3</span>
-                          <span>Halaman akan otomatis memuat seluruh fitur perangkat.</span>
-                       </li>
+                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">1</span><span>Klik tombol <b>Update Kunci Mandiri</b> di bawah.</span></li>
+                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">2</span><span>Sistem akan memaksa penggunaan model <b>Flash 3</b> yang anti-quota-exhausted.</span></li>
+                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">3</span><span>Seluruh fitur akan aktif seketika setelah kunci disimpan.</span></li>
                     </ul>
                  </div>
                  <div className="flex flex-col sm:flex-row gap-3">
-                    <button 
-                      onClick={() => setActiveMenu('DASHBOARD')}
-                      className="px-8 py-4 rounded-2xl text-xs font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 transition-all"
-                    >
-                        KEMBALI KE DASHBOARD
-                    </button>
-                    <button 
-                      onClick={() => setShowProfileModal(true)}
-                      className="bg-blue-600 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl shadow-blue-100 flex items-center gap-2"
-                    >
-                        <Key size={16}/> INPUT API KEY SAYA
-                    </button>
+                    <button onClick={() => setActiveMenu('DASHBOARD')} className="px-8 py-4 rounded-2xl text-xs font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 transition-all">DASHBOARD</button>
+                    <button onClick={() => setShowProfileModal(true)} className="bg-blue-600 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl flex items-center gap-2"><Key size={16}/> UPDATE KUNCI MANDIRI</button>
                  </div>
               </div>
             ) : (
