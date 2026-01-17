@@ -5,7 +5,7 @@ import {
   User as UserIcon, Settings, Users, CalendarDays, FileText, 
   CalendarRange, Rocket, Menu, ChevronRight, Loader2, AlertTriangle,
   BarChart3, LayoutDashboard, Code, BookText, PenTool, ClipboardCheck,
-  ClipboardList
+  ClipboardList, Lock, Key, ShieldAlert
 } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import CPManager from './components/CPManager';
@@ -99,9 +99,14 @@ const App: React.FC = () => {
     return <LoginPage />;
   }
 
+  // Pengecekan Kunci API: Jika tidak ada kunci, batasi akses kecuali untuk Admin yang ingin menyetel kunci.
+  const hasNoApiKey = !user.apiKey;
+  const isGuruBlocked = hasNoApiKey && user.role === 'guru';
+  const isAdminBlocked = hasNoApiKey && user.role === 'admin' && activeMenu !== 'USER' && activeMenu !== 'SETTING' && activeMenu !== 'DASHBOARD';
+
   return (
     <div className="min-h-screen bg-slate-50 flex overflow-hidden">
-      <AIAssistant user={user} />
+      {user.apiKey && <AIAssistant user={user} />}
 
       {showLogoutConfirm && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
@@ -138,17 +143,22 @@ const App: React.FC = () => {
           <nav className="flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar">
             {navItems.map((item) => {
               if (item.adminOnly && user.role !== 'admin') return null;
+              
+              // Menonaktifkan menu jika terblokir
+              const isDisabled = (isGuruBlocked && item.id !== 'DASHBOARD') || (isAdminBlocked && item.id !== 'USER' && item.id !== 'SETTING' && item.id !== 'DASHBOARD');
+
               return (
                 <div key={item.id} className="space-y-1">
                   <button 
+                    disabled={isDisabled}
                     onClick={() => { setActiveMenu(item.id as any); setIsSidebarOpen(false); }} 
-                    className={`w-full flex items-center justify-between p-3 rounded-xl text-xs font-bold transition-all group ${activeMenu === item.id ? `${item.bg} ${item.color} shadow-sm border border-slate-100` : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+                    className={`w-full flex items-center justify-between p-3 rounded-xl text-xs font-bold transition-all group ${isDisabled ? 'opacity-40 cursor-not-allowed grayscale' : activeMenu === item.id ? `${item.bg} ${item.color} shadow-sm border border-slate-100` : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
                   >
                     <div className="flex items-center gap-3">
-                      <span className={`${activeMenu === item.id ? item.color : 'text-slate-400'}`}>{item.icon}</span>
+                      <span className={`${activeMenu === item.id ? item.color : 'text-slate-400'}`}>{isDisabled ? <Lock size={16}/> : item.icon}</span>
                       <span>{item.label}</span>
                     </div>
-                    {activeMenu === item.id && <ChevronRight size={14} />}
+                    {activeMenu === item.id && !isDisabled && <ChevronRight size={14} />}
                   </button>
                 </div>
               );
@@ -190,20 +200,35 @@ const App: React.FC = () => {
         </header>
         <main className="flex-1 overflow-y-auto custom-scrollbar p-4 lg:p-8">
           <div className="max-w-7xl mx-auto">
-            {activeMenu === 'DASHBOARD' && <Dashboard user={user} onNavigate={(id) => setActiveMenu(id)} />}
-            {activeMenu === 'CP' && <CPManager user={user} />}
-            {activeMenu === 'ANALISIS' && <AnalisisManager user={user} />}
-            {activeMenu === 'ATP' && <ATPManager user={user} />}
-            {activeMenu === 'SETTING' && <SettingsManager user={user} />}
-            {activeMenu === 'USER' && <UserManager user={user} />}
-            {activeMenu === 'EFEKTIF' && <HariEfektifManager user={user} />}
-            {activeMenu === 'PROTA' && <ProtaManager user={user} />}
-            {activeMenu === 'PROMES' && <PromesManager user={user} />}
-            {activeMenu === 'RPM' && <RPMManager user={user} />}
-            {activeMenu === 'LKPD' && <LKPDManager user={user} />}
-            {activeMenu === 'JURNAL' && <JurnalManager user={user} />}
-            {activeMenu === 'ASESMEN_SUMATIF' && <AsesmenManager type="sumatif" user={user} />}
-            {activeMenu === 'EVALUASI' && <EvaluasiManager user={user} />}
+            {isGuruBlocked && activeMenu !== 'DASHBOARD' ? (
+              <div className="flex flex-col items-center justify-center py-32 text-center">
+                 <div className="w-24 h-24 bg-rose-100 text-rose-600 rounded-[40px] flex items-center justify-center mb-8 shadow-xl animate-bounce">
+                    <ShieldAlert size={48}/>
+                 </div>
+                 <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-4">Akses Sistem Terbatas</h2>
+                 <p className="text-slate-500 font-medium max-w-md leading-relaxed mb-8">
+                    Akun Anda belum memiliki <b>Gemini API Key</b> yang valid. Harap hubungi Admin Sekolah untuk melakukan konfigurasi kunci AI agar Anda dapat mengakses seluruh fitur perangkat pembelajaran.
+                 </p>
+                 <button onClick={() => setActiveMenu('DASHBOARD')} className="bg-slate-900 text-white px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest">KEMBALI KE DASHBOARD</button>
+              </div>
+            ) : (
+              <>
+                {activeMenu === 'DASHBOARD' && <Dashboard user={user} onNavigate={(id) => setActiveMenu(id)} />}
+                {activeMenu === 'CP' && <CPManager user={user} />}
+                {activeMenu === 'ANALISIS' && <AnalisisManager user={user} />}
+                {activeMenu === 'ATP' && <ATPManager user={user} />}
+                {activeMenu === 'SETTING' && <SettingsManager user={user} />}
+                {activeMenu === 'USER' && <UserManager user={user} />}
+                {activeMenu === 'EFEKTIF' && <HariEfektifManager user={user} />}
+                {activeMenu === 'PROTA' && <ProtaManager user={user} />}
+                {activeMenu === 'PROMES' && <PromesManager user={user} />}
+                {activeMenu === 'RPM' && <RPMManager user={user} />}
+                {activeMenu === 'LKPD' && <LKPDManager user={user} />}
+                {activeMenu === 'JURNAL' && <JurnalManager user={user} />}
+                {activeMenu === 'ASESMEN_SUMATIF' && <AsesmenManager type="sumatif" user={user} />}
+                {activeMenu === 'EVALUASI' && <EvaluasiManager user={user} />}
+              </>
+            )}
           </div>
         </main>
       </div>

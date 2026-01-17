@@ -255,6 +255,22 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
               let cleanText = trimmedLine.replace(/^\[\s?\]|^\[x\]|^\[v\]/i, '').trim();
               const optionMatch = cleanText.match(/^([A-E])[\.\)]\s+(.*)/);
 
+              // Logika Kotak Perintah untuk Multiple Choice
+              const isInstruction = isComplex && (
+                trimmedLine.toLowerCase().includes('tanda centang') || 
+                trimmedLine.toLowerCase().includes('pernyataan yang benar') ||
+                trimmedLine.toLowerCase().includes('pilihlah jawaban')
+              );
+
+              if (isInstruction) {
+                return (
+                  <div key={li} className={`border-2 border-black p-3 mb-5 bg-slate-50 font-bold ${isPrint ? 'text-[11px]' : 'text-[13px]'} leading-tight rounded-sm shadow-sm flex items-center gap-3`}>
+                    <div className="bg-black text-white p-1 rounded-sm shrink-0 shadow-sm"><CheckSquare size={isPrint ? 12 : 15} /></div>
+                    <span className="flex-1">{cleanText}</span>
+                  </div>
+                );
+              }
+
               if (optionMatch) {
                 const [_, label, text] = optionMatch;
                 if (isComplex) {
