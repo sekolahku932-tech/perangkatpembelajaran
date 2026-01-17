@@ -4,7 +4,7 @@ import {
   BookOpen, ListTree, FileText, 
   CalendarRange, Rocket, Users, GraduationCap, 
   LayoutDashboard, Cloud, CheckCircle2, ArrowRight,
-  BarChart3, Code, ClipboardList, AlertTriangle, Key
+  BarChart3, Code, ClipboardList, AlertTriangle, Key, ShieldAlert, Lock
 } from 'lucide-react';
 import { db, collection, onSnapshot } from '../services/firebase';
 import { User } from '../types';
@@ -17,29 +17,15 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate, onOpenProfile }) => {
   const [stats, setStats] = useState({
-    cp: 0,
-    analisis: 0,
-    atp: 0,
-    prota: 0,
-    promes: 0,
-    rpm: 0,
-    siswa: 0,
-    users: 0,
-    kisikisi: 0
+    cp: 0, analisis: 0, atp: 0, prota: 0, promes: 0, rpm: 0, siswa: 0, users: 0, kisikisi: 0
   });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const collections = [
-      { key: 'cp', name: 'cps' },
-      { key: 'analisis', name: 'analisis' },
-      { key: 'atp', name: 'atp' },
-      { key: 'prota', name: 'prota' },
-      { key: 'promes', name: 'promes' },
-      { key: 'rpm', name: 'rpm' },
-      { key: 'siswa', name: 'siswa' },
-      { key: 'users', name: 'users' },
-      { key: 'kisikisi', name: 'kisikisi' }
+      { key: 'cp', name: 'cps' }, { key: 'analisis', name: 'analisis' }, { key: 'atp', name: 'atp' },
+      { key: 'prota', name: 'prota' }, { key: 'promes', name: 'promes' }, { key: 'rpm', name: 'rpm' },
+      { key: 'siswa', name: 'siswa' }, { key: 'users', name: 'users' }, { key: 'kisikisi', name: 'kisikisi' }
     ];
 
     const unsubscribes = collections.map(coll => 
@@ -63,6 +49,8 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate, onOpenProfile }
     setLoading(false);
     return () => unsubscribes.forEach(unsub => unsub());
   }, [user]);
+
+  const hasPersonalKey = user.apiKey && user.apiKey.trim().length > 10;
 
   const statCards = [
     { id: 'CP', label: 'Capaian Pembelajaran', count: stats.cp, icon: <BookOpen />, color: 'blue' },
@@ -88,23 +76,22 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate, onOpenProfile }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
-      {/* Banner Peringatan API Key - Sekarang dengan tombol set mandiri untuk semua user */}
-      {(!user.apiKey || user.apiKey.length < 5) && (
-        <div className="bg-amber-50 border-2 border-amber-200 rounded-[32px] p-6 flex flex-col md:flex-row items-center gap-6 shadow-xl shadow-amber-900/5 animate-in slide-in-from-top-4 duration-1000">
-          <div className="w-16 h-16 bg-amber-100 text-amber-600 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
-            <AlertTriangle size={32} />
+      {!hasPersonalKey && (
+        <div className="bg-rose-50 border-2 border-rose-200 rounded-[32px] p-6 flex flex-col md:flex-row items-center gap-6 shadow-xl shadow-rose-900/5 animate-in slide-in-from-top-4 duration-1000">
+          <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center shrink-0">
+            <ShieldAlert size={32} />
           </div>
           <div className="flex-1 text-center md:text-left">
-            <h3 className="text-amber-900 font-black uppercase text-sm tracking-tight mb-1">Fitur AI Belum Aktif</h3>
-            <p className="text-amber-700 text-xs font-medium leading-relaxed">
-              Anda belum memasukkan <b>Gemini API Key</b> pribadi. Sesuai kebijakan hosting individu, Anda wajib menggunakan kunci API sendiri agar asisten AI dan seluruh generator perangkat dapat berfungsi dengan lancar.
+            <h3 className="text-rose-900 font-black uppercase text-sm tracking-tight mb-1">Akses AI Terkunci Secara Mandiri</h3>
+            <p className="text-rose-700 text-xs font-medium leading-relaxed">
+              Anda wajib menginput <b>API Key pribadi</b> di Profil Anda untuk menggunakan fitur kurikulum. Kunci sekolah dinonaktifkan demi kestabilan kuota.
             </p>
           </div>
           <button 
             onClick={onOpenProfile}
-            className="bg-amber-600 hover:bg-amber-700 text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg active:scale-95"
+            className="bg-rose-600 hover:bg-rose-700 text-white px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 shadow-lg active:scale-95"
           >
-            <Key size={14} /> Atur Kunci Sekarang
+            <Key size={14} /> Atur Kunci Saya
           </button>
         </div>
       )}
@@ -118,31 +105,23 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate, onOpenProfile }
             <div className="px-4 py-1.5 bg-blue-500 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
               <Cloud size={12} /> Cloud Aktif
             </div>
-            <div className="px-4 py-1.5 bg-emerald-500 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-              <CheckCircle2 size={12} /> {user.role === 'admin' ? 'Administrator' : `Guru Kelas ${user.kelas}`}
+            <div className={`px-4 py-1.5 ${hasPersonalKey ? 'bg-emerald-500' : 'bg-rose-500'} rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2`}>
+              {hasPersonalKey ? <Key size={12} /> : <Lock size={12} />} {hasPersonalKey ? 'Personal Key Active' : 'Key Missing'}
             </div>
-            {user.apiKey && user.apiKey.length > 5 ? (
-              <div className="px-4 py-1.5 bg-indigo-500 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                <Key size={12} /> Personal Key Active
-              </div>
-            ) : (
-              <div className="px-4 py-1.5 bg-rose-500 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                <Lock size={12} /> Key Required
-              </div>
-            )}
           </div>
           <h1 className="text-3xl md:text-4xl font-black mb-4 leading-tight">
             Selamat Datang, <span className="text-blue-400">{user.name}</span>
           </h1>
           <p className="text-slate-400 text-sm md:text-base font-medium leading-relaxed mb-8">
-            {user.role === 'admin' 
-              ? 'Kelola seluruh infrastruktur kurikulum dan pengguna SD Negeri 5 Bilato.'
-              : `Kelola perangkat pembelajaran digital untuk Kelas ${user.kelas}. Data Anda tersinkronisasi secara aman di Cloud.`}
+            {hasPersonalKey 
+              ? `Kunci AI Anda terverifikasi. Anda memiliki akses penuh ke seluruh fitur penyusunan perangkat di Kelas ${user.kelas}.`
+              : `Lengkapi konfigurasi API Key Anda untuk mulai menyusun perangkat pembelajaran digital yang tersinkronisasi di Cloud.`}
           </p>
           <div className="flex flex-wrap gap-4">
             <button 
               onClick={() => onNavigate('CP')}
-              className="bg-white text-slate-900 px-6 py-3 rounded-2xl text-xs font-black hover:bg-blue-50 transition-all flex items-center gap-2 shadow-xl"
+              disabled={!hasPersonalKey}
+              className={`px-6 py-3 rounded-2xl text-xs font-black transition-all flex items-center gap-2 shadow-xl ${hasPersonalKey ? 'bg-white text-slate-900 hover:bg-blue-50' : 'bg-slate-700 text-slate-500 cursor-not-allowed'}`}
             >
               MULAI MENYUSUN <ArrowRight size={16} />
             </button>
@@ -151,66 +130,28 @@ const Dashboard: React.FC<DashboardProps> = ({ user, onNavigate, onOpenProfile }
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {statCards.map((card) => (
-          <button
-            key={card.id}
-            onClick={() => onNavigate(card.id)}
-            className={`p-6 rounded-[32px] border transition-all hover:scale-[1.02] active:scale-95 group text-left shadow-sm hover:shadow-xl ${colorMap[card.color]}`}
-          >
-            <div className="flex justify-between items-start mb-6">
-              <div className={`p-4 rounded-2xl bg-white shadow-sm group-hover:shadow-md transition-all ${card.color === 'slate' ? 'text-slate-600' : ''}`}>
-                {React.cloneElement(card.icon as React.ReactElement<any>, { size: 24 })}
-              </div>
-              <ArrowRight className="opacity-0 group-hover:opacity-100 transition-all -translate-x-4 group-hover:translate-x-0" size={18} />
-            </div>
-            <div>
-              <p className="text-3xl font-black mb-1 tracking-tight">{card.count}</p>
-              <p className="text-[10px] font-black uppercase tracking-widest opacity-70">{card.label}</p>
-            </div>
-          </button>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-8 opacity-5 text-blue-600 group-hover:scale-110 transition-transform">
-            <LayoutDashboard size={80} />
-          </div>
-          <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight mb-4">Informasi Akun</h3>
-          <div className="space-y-6">
-             <div className="flex items-center justify-between">
-                <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Akses Mapel</span>
-                <div className="flex flex-wrap gap-1 justify-end max-w-[200px]">
-                  {(user.mapelDiampu || []).map(m => (
-                    <span key={m} className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[9px] font-bold">{m}</span>
-                  ))}
+        {statCards.map((card) => {
+          const isCardLocked = !hasPersonalKey && !['DASHBOARD', 'USER', 'SETTING'].includes(card.id);
+          return (
+            <button
+              key={card.id}
+              disabled={isCardLocked}
+              onClick={() => onNavigate(card.id)}
+              className={`p-6 rounded-[32px] border transition-all hover:scale-[1.02] active:scale-95 group text-left shadow-sm ${isCardLocked ? 'opacity-40 grayscale cursor-not-allowed' : `hover:shadow-xl ${colorMap[card.color]}`}`}
+            >
+              <div className="flex justify-between items-start mb-6">
+                <div className={`p-4 rounded-2xl bg-white shadow-sm transition-all ${card.color === 'slate' ? 'text-slate-600' : ''}`}>
+                  {isCardLocked ? <Lock size={24} /> : React.cloneElement(card.icon as React.ReactElement<any>, { size: 24 })}
                 </div>
-             </div>
-             <div className="flex items-center justify-between border-t border-slate-50 pt-4">
-                <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">NIP</span>
-                <span className="text-xs font-bold text-slate-800">{user.nip || '-'}</span>
-             </div>
-             <div className="flex items-center justify-between border-t border-slate-50 pt-4">
-                <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">Wilayah Kerja</span>
-                <span className="text-xs font-black text-emerald-600 uppercase">Kelas {user.kelas}</span>
-             </div>
-          </div>
-        </div>
-
-        <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-8 opacity-5 text-blue-500 group-hover:scale-110 transition-transform">
-            <Code size={80} />
-          </div>
-          <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight mb-4">Pengembang Sistem</h3>
-          <div className="flex flex-col items-center justify-center py-4">
-            <p className="text-xl font-black text-slate-800 tracking-tighter uppercase mb-1">Ariyanto Rahman</p>
-            <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em]">Lead Developer</p>
-            <div className="mt-6 flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-full border border-slate-100">
-               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-               <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">v1.0 stable</span>
-            </div>
-          </div>
-        </div>
+                {!isCardLocked && <ArrowRight className="opacity-0 group-hover:opacity-100 transition-all -translate-x-4 group-hover:translate-x-0" size={18} />}
+              </div>
+              <div>
+                <p className="text-3xl font-black mb-1 tracking-tight">{card.count}</p>
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-70">{card.label}</p>
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

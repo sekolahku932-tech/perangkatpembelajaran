@@ -33,7 +33,6 @@ const App: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   
-  // State untuk Modal Profil Mandiri
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileFormData, setProfileFormData] = useState({ name: '', nip: '', apiKey: '' });
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -42,17 +41,17 @@ const App: React.FC = () => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        // Mendengarkan perubahan dokumen user secara real-time
         const unsubUser = onSnapshot(doc(db, "users", firebaseUser.uid), (snap) => {
           if (snap.exists()) {
             const userData = { id: firebaseUser.uid, ...snap.data() } as User;
             setUser(userData);
-            // Sinkronkan form data hanya jika modal tidak sedang terbuka (menghindari overwrite saat ngetik)
-            setProfileFormData(prev => ({
-              name: userData.name || prev.name,
-              nip: userData.nip || prev.nip,
-              apiKey: userData.apiKey || prev.apiKey
-            }));
+            if (!showProfileModal) {
+              setProfileFormData({
+                name: userData.name || '',
+                nip: userData.nip || '',
+                apiKey: userData.apiKey || ''
+              });
+            }
           } else {
             const newUser = { 
               id: firebaseUser.uid, 
@@ -76,7 +75,7 @@ const App: React.FC = () => {
       }
     });
     return () => unsubscribe();
-  }, []);
+  }, [showProfileModal]);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -95,9 +94,9 @@ const App: React.FC = () => {
       }, { merge: true });
       
       setShowProfileModal(false);
-      alert('API Key Pribadi Berhasil Diaktifkan! Sistem sekarang menggunakan kuota Anda.');
+      alert('Profil diperbarui! Sekarang sistem menggunakan API Key pribadi Anda.');
     } catch (e) {
-      alert('Gagal memperbarui profil: ' + (e as Error).message);
+      alert('Gagal: ' + (e as Error).message);
     } finally {
       setIsSavingProfile(false);
     }
@@ -131,19 +130,21 @@ const App: React.FC = () => {
 
   if (!user) return <LoginPage />;
 
+  // LOGIKA PENGUNCIAN: API Key minimal 10 karakter untuk dianggap valid
   const hasNoApiKey = !user.apiKey || user.apiKey.trim().length < 10;
+  
   const isMenuAllowedWithoutKey = (menuId: string) => {
     if (menuId === 'DASHBOARD') return true;
     if (user.role === 'admin' && (menuId === 'USER' || menuId === 'SETTING')) return true;
     return false;
   };
+
   const isCurrentMenuRestricted = hasNoApiKey && !isMenuAllowedWithoutKey(activeMenu);
 
   return (
     <div className="min-h-screen bg-slate-50 flex overflow-hidden">
-      {user.apiKey && <AIAssistant user={user} />}
+      {user.apiKey && user.apiKey.length > 10 && <AIAssistant user={user} />}
 
-      {/* Modal Profil & API Key */}
       {showProfileModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[250] flex items-center justify-center p-4">
           <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95">
@@ -152,7 +153,7 @@ const App: React.FC = () => {
                 <div className="p-2.5 bg-blue-600 text-white rounded-2xl shadow-lg"><UserIcon size={20} /></div>
                 <div>
                   <h3 className="text-lg font-black text-slate-900 uppercase">Profil & API Key</h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Update Akses AI Mandiri</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Update Data Mandiri</p>
                 </div>
               </div>
               <button onClick={() => setShowProfileModal(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all"><X size={24} /></button>
@@ -160,12 +161,12 @@ const App: React.FC = () => {
             <div className="p-8 space-y-5">
               <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Nama Lengkap</label><input className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-blue-600" value={profileFormData.name} onChange={e => setProfileFormData({...profileFormData, name: e.target.value})} /></div>
               <div className="p-5 bg-indigo-50 border border-indigo-100 rounded-3xl space-y-3">
-                <label className="flex items-center gap-2 text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1"><Key size={14}/> Gemini API Key (Versi Flash)</label>
+                <label className="flex items-center gap-2 text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1"><Key size={14}/> Gemini API Key (Flash 3)</label>
                 <div className="relative">
                   <input type={showKey ? "text" : "password"} className="w-full bg-white border border-indigo-200 rounded-xl py-3 pl-4 pr-12 text-xs font-mono font-bold focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="AIzaSyB..." value={profileFormData.apiKey} onChange={e => setProfileFormData({...profileFormData, apiKey: e.target.value})} />
                   <button onClick={() => setShowKey(!showKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-400">{showKey ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
                 </div>
-                <p className="text-[9px] text-indigo-400 font-medium leading-relaxed italic">Sistem otomatis menggunakan model <b>Flash 3</b> yang lebih ringan dan memiliki kuota gratis lebih besar daripada versi Pro.</p>
+                <p className="text-[9px] text-indigo-400 font-medium leading-relaxed italic">Wajib menggunakan API Key sendiri untuk akses fitur AI.</p>
               </div>
             </div>
             <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
@@ -184,7 +185,7 @@ const App: React.FC = () => {
             <div className="p-8 text-center">
               <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6 mx-auto"><AlertTriangle size={32} /></div>
               <h3 className="text-xl font-black text-slate-900 uppercase mb-2">Konfirmasi Keluar</h3>
-              <p className="text-slate-500 font-medium text-sm">Apakah Anda yakin ingin keluar dari sistem database cloud?</p>
+              <p className="text-slate-500 font-medium text-sm">Apakah Anda yakin ingin keluar?</p>
             </div>
             <div className="p-4 bg-slate-50 flex gap-3">
               <button onClick={() => setShowLogoutConfirm(false)} className="flex-1 px-6 py-3 rounded-xl text-xs font-black text-slate-500 bg-white border border-slate-200">BATAL</button>
@@ -201,8 +202,8 @@ const App: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-blue-600 rounded-xl text-white shadow-lg"><School size={24} /></div>
               <div>
-                <h1 className="text-sm font-black text-slate-900 leading-none uppercase">SDN 5 BILATO</h1>
-                <p className="text-[10px] text-blue-600 font-bold uppercase mt-1">Database Cloud</p>
+                <h1 className="text-sm font-black text-slate-900 uppercase">SDN 5 BILATO</h1>
+                <p className="text-[10px] text-blue-600 font-bold uppercase mt-1">Sistem Perangkat AI</p>
               </div>
             </div>
           </div>
@@ -229,18 +230,16 @@ const App: React.FC = () => {
           </nav>
           <div className="p-4 border-t border-slate-100 shrink-0">
             <button onClick={() => setShowProfileModal(true)} className="w-full bg-slate-50 hover:bg-slate-100 rounded-2xl p-4 flex items-center gap-3 mb-4 transition-all group">
-              <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 group-hover:text-blue-600 group-hover:border-blue-200 transition-all"><UserIcon size={20} /></div>
+              <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 group-hover:text-blue-600 transition-all"><UserIcon size={20} /></div>
               <div className="overflow-hidden text-left">
                 <p className="text-xs font-black text-slate-900 truncate uppercase">{user.name}</p>
                 <div className="flex items-center gap-1">
                   <div className={`w-1.5 h-1.5 rounded-full ${hasNoApiKey ? 'bg-red-500' : 'bg-emerald-500'}`}></div>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase">{hasNoApiKey ? 'No API Key' : 'Flash Key Aktif'}</p>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase">{hasNoApiKey ? 'NO KEY' : 'PRIBADI AKTIF'}</p>
                 </div>
               </div>
             </button>
-            <button onClick={() => setShowLogoutConfirm(true)} className="w-full flex items-center justify-center gap-2 p-3 rounded-xl text-xs font-black text-red-600 hover:bg-red-50 transition-all border border-transparent hover:border-red-100">
-              <LogOut size={18} /> KELUAR SISTEM
-            </button>
+            <button onClick={() => setShowLogoutConfirm(true)} className="w-full flex items-center justify-center gap-2 p-3 rounded-xl text-xs font-black text-red-600 hover:bg-red-50 transition-all uppercase"><LogOut size={18} /> KELUAR</button>
           </div>
         </div>
       </aside>
@@ -262,21 +261,21 @@ const App: React.FC = () => {
             {isCurrentMenuRestricted ? (
               <div className="flex flex-col items-center justify-center py-32 text-center animate-in fade-in zoom-in-95 duration-500">
                  <div className="w-24 h-24 bg-rose-100 text-rose-600 rounded-[40px] flex items-center justify-center mb-8 shadow-xl shadow-rose-200/50"><ShieldAlert size={48}/></div>
-                 <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-4">Akses Terkunci (Limit 0)</h2>
+                 <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-4">Akses Dibatasi (Kunci Pribadi Wajib)</h2>
                  <p className="text-slate-500 font-medium max-w-md leading-relaxed mb-8">
-                    Terdeteksi upaya pemanggilan model <b>Gemini Pro</b> yang dibatasi. Sesuai kebijakan hosting, harap gunakan <b>Gemini API Key</b> Anda sendiri untuk mengaktifkan model <b>Flash 3</b> yang lebih handal.
+                    Menu ini membutuhkan <b>Gemini API Key pribadi</b> Anda. Sistem tidak lagi mengizinkan penggunaan kunci sekolah untuk mencegah error kuota (Limit 0).
                  </p>
                  <div className="bg-white border border-slate-200 p-6 rounded-3xl shadow-sm mb-8 text-left max-w-md w-full">
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Info size={14} className="text-blue-500"/> Solusi Perbaikan:</h4>
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Info size={14} className="text-blue-500"/> Cara Mengaktifkan:</h4>
                     <ul className="space-y-3 text-[11px] font-bold text-slate-600">
-                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">1</span><span>Klik tombol <b>Update Kunci Mandiri</b> di bawah.</span></li>
-                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">2</span><span>Sistem akan memaksa penggunaan model <b>Flash 3</b> yang anti-quota-exhausted.</span></li>
-                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">3</span><span>Seluruh fitur akan aktif seketika setelah kunci disimpan.</span></li>
+                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">1</span><span>Buka Profil Anda dengan tombol di bawah.</span></li>
+                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">2</span><span>Paste API Key dari <b>Google AI Studio</b>.</span></li>
+                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">3</span><span>Seluruh fitur perangkat akan otomatis terbuka.</span></li>
                     </ul>
                  </div>
                  <div className="flex flex-col sm:flex-row gap-3">
-                    <button onClick={() => setActiveMenu('DASHBOARD')} className="px-8 py-4 rounded-2xl text-xs font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 transition-all">DASHBOARD</button>
-                    <button onClick={() => setShowProfileModal(true)} className="bg-blue-600 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl flex items-center gap-2"><Key size={16}/> UPDATE KUNCI MANDIRI</button>
+                    <button onClick={() => setActiveMenu('DASHBOARD')} className="px-8 py-4 rounded-2xl text-xs font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 transition-all">KEMBALI</button>
+                    <button onClick={() => setShowProfileModal(true)} className="bg-blue-600 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl flex items-center gap-2"><Key size={16}/> SET API KEY PRIBADI</button>
                  </div>
               </div>
             ) : (
