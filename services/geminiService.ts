@@ -3,8 +3,8 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { UploadedFile } from "../types";
 
 /**
- * PENTING: SDN 5 Bilato Cloud hanya menggunakan model FLASH.
- * Model Pro dilarang karena sering terkena 'Limit 0' pada akun gratis.
+ * PENTING: SDN 5 Bilato Cloud HANYA menggunakan model FLASH 3.
+ * Model Pro (gemini-3-pro) DILARANG karena limit kuota akun gratis (Limit 0).
  */
 const MODEL_NAME = 'gemini-3-flash-preview';
 
@@ -14,38 +14,38 @@ const cleanJsonString = (str: string): string => {
 };
 
 /**
- * Handler Error Manusiawi:
- * Jika Google mengembalikan JSON error (seperti di screenshot user),
- * fungsi ini akan memotongnya dan memberikan instruksi perbaikan.
+ * Handler Error: Memberikan instruksi jelas jika kuota guru habis
  */
 const formatAIError = (error: any): string => {
   const errorStr = typeof error === 'string' ? error : (error?.message || "");
   console.error("DEBUG AI ERROR:", errorStr);
 
-  if (errorStr.includes('Limit: 0') || errorStr.includes('GEMINI-3-PRO')) {
-    return "MODEL DIBATASI: Akun Google Anda melarang penggunaan model Pro. Sistem telah kami paksa ke model Flash, namun pastikan API Key Anda benar-benar valid dan baru.";
+  if (errorStr.includes('429') || errorStr.includes('QUOTA') || errorStr.includes('RESOURCE_EXHAUSTED')) {
+    return "BATAS KUOTA: API Key pribadi Anda telah mencapai batas gratis menit ini. Mohon tunggu 60 detik sebelum mencoba lagi.";
   }
 
-  if (errorStr.includes('429') || errorStr.includes('QUOTA')) {
-    return "KUOTA HABIS: Batas gratis API Key Anda sudah tercapai untuk menit ini. Tunggu 60 detik lalu coba lagi.";
+  if (errorStr.includes('Limit: 0') || errorStr.includes('PRO')) {
+    return "MODEL TIDAK TERSEDIA: Google membatasi akun Anda untuk model Pro. Sistem sudah diarahkan ke Flash, harap pastikan API Key Anda benar-benar valid.";
   }
 
-  if (errorStr.includes('API_KEY_REQUIRED') || errorStr.includes('INVALID_API_KEY')) {
-    return "KUNCI WAJIB: Anda belum memasukkan API Key pribadi yang valid di Profil. Fitur AI dikunci.";
+  if (errorStr.includes('API_KEY_REQUIRED')) {
+    return "AKSES DITOLAK: Anda belum mengatur API Key di Profil. Klik Nama Anda di pojok kiri bawah untuk memasukkan kunci.";
   }
 
-  return "GANGGUAN KONEKSI: Pastikan API Key Anda benar. Jika masih gagal, ambil kunci baru di Google AI Studio.";
+  return `GANGGUAN KUNCI: Pastikan API Key Anda benar dan baru. Error: ${errorStr.substring(0, 50)}...`;
 };
 
 /**
- * LOGIKA EKSTRA KETAT:
- * Hanya menerima kunci dari user. Minimal 20 karakter.
- * Tidak ada pengambilan dari process.env sama sekali.
+ * LOGIKA ISOLASI KUNCI:
+ * Fungsi ini HANYA akan mengambil kunci dari parameter 'customKey'.
+ * Tidak ada lagi fallback ke process.env atau variabel rahasia lainnya.
  */
 const getApiKey = (customKey?: string) => {
-  if (customKey && typeof customKey === 'string' && customKey.trim().length > 20) {
-    return customKey.trim();
+  const key = customKey?.trim();
+  if (key && key.length > 20) {
+    return key;
   }
+  // Jika tidak ada kunci yang dilewatkan dari profil user, lemparkan error
   throw new Error('API_KEY_REQUIRED');
 };
 

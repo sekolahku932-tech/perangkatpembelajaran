@@ -17,8 +17,9 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       define: {
-        // Mengekspos process.env ke client-side code
-        'process.env.API_KEY': JSON.stringify(env.API_KEY || env.GEMINI_API_KEY),
+        // PENTING: Kami menghapus process.env.API_KEY dari sini 
+        // agar aplikasi tidak menggunakan kunci default dari environment hosting.
+        // Sistem hanya akan menggunakan apiKey yang dikirimkan oleh objek 'user' dari database.
       },
       resolve: {
         alias: {
