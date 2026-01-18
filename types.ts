@@ -125,7 +125,6 @@ export interface HariEfektif {
   semester: 1 | 2;
   bulan: string;
   jumlahMinggu: number;
-  // Fix: Corrected typo from minnguTidakEfektif to mingguTidakEfektif
   mingguTidakEfektif: number;
   keterangan: string;
 }
@@ -239,8 +238,6 @@ export interface RPMItem {
   kegiatanInti: string;
   kegiatanPenutup: string;
   asesmenTeknik: string;
-  // Menambahkan field materiAjar untuk menyimpan lampiran bahan bacaan
-  materiAjar: string;
 }
 
 export interface LKPDItem {
@@ -260,10 +257,10 @@ export interface LKPDItem {
   jumlahPertemuan: number;
 }
 
-// Mata Pelajaran Inti (Kurikulum)
+// Academic only
 export const MATA_PELAJARAN = [
   'Pendidikan Agama dan Budi Pekerti',
-  'Pendidikan Pancasilan',
+  'Pendidikan Pancasila',
   'Bahasa Indonesia',
   'Matematika',
   'IPAS',
@@ -272,11 +269,12 @@ export const MATA_PELAJARAN = [
   'Bahasa Inggris',
   'Koding dan KA',
   'Mulok',
-  'Kokurikuler'
+  'Kokurikuler',
+  'Pendidikan Anti Korupsi'
 ];
 
-// Seluruh Aktivitas (Untuk Jadwal)
-export const SEMUA_AKTIVITAS = [
+// Academic + Non-academic for timetable
+export const MATA_PELAJARAN_JADWAL = [
   ...MATA_PELAJARAN,
   'Istirahat',
   'Upacara/Apel'

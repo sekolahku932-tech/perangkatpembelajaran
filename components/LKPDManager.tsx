@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Fase, Kelas, LKPDItem, RPMItem, MATA_PELAJARAN, SchoolSettings, User } from '../types';
-import { Plus, Trash2, Rocket, Sparkles, Loader2, CheckCircle2, Printer, Cloud, FileText, Split, AlertTriangle, FileDown, Wand2, PencilLine, Lock, Brain, Zap, RefreshCw, PenTool, Search, AlertCircle, X, ArrowRight } from 'lucide-react';
+import { Plus, Trash2, Rocket, Sparkles, Loader2, CheckCircle2, Printer, Cloud, FileText, Split, AlertTriangle, FileDown, Wand2, PencilLine, Lock, Brain, Zap, RefreshCw, PenTool, Search, AlertCircle, X } from 'lucide-react';
 import { generateLKPDContent } from '../services/geminiService';
 import { db, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from '../services/firebase';
 
@@ -22,7 +22,7 @@ const LKPDManager: React.FC<LKPDManagerProps> = ({ user }) => {
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [isPrintMode, setIsPrintMode] = useState(false);
-  const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
+  const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [showRpmPicker, setShowRpmPicker] = useState(false);
 
@@ -37,16 +37,25 @@ const LKPDManager: React.FC<LKPDManagerProps> = ({ user }) => {
   
   const [activeYear, setActiveYear] = useState('2025/2026');
 
+  // FIX: If guru has no assigned mapel, show all by default
+  const availableMapel = useMemo(() => {
+    if (user.role === 'admin' || !user.mapelDiampu || user.mapelDiampu.length === 0) {
+      return MATA_PELAJARAN;
+    }
+    return user.mapelDiampu;
+  }, [user]);
+
+  useEffect(() => {
+    if (!availableMapel.includes(filterMapel)) {
+      setFilterMapel(availableMapel[0] || MATA_PELAJARAN[0]);
+    }
+  }, [availableMapel]);
+
   useEffect(() => {
     if (user.role === 'guru') {
       if (user.kelas !== '-' && user.kelas !== 'Multikelas') {
         setFilterKelas(user.kelas as Kelas);
         updateFaseByKelas(user.kelas as Kelas);
-      }
-      if (user.mapelDiampu && user.mapelDiampu.length > 0) {
-        if (!user.mapelDiampu.includes(filterMapel)) {
-          setFilterMapel(user.mapelDiampu[0]);
-        }
       }
     }
   }, [user]);
@@ -82,20 +91,22 @@ const LKPDManager: React.FC<LKPDManagerProps> = ({ user }) => {
   }, []);
 
   const filteredLkpd = useMemo(() => {
+    const currentMapelNormalized = filterMapel.trim().toLowerCase();
     return lkpdList.filter(l => 
       l.fase === filterFase && 
       l.kelas === filterKelas && 
       l.semester === filterSemester && 
-      l.mataPelajaran === filterMapel
+      (l.mataPelajaran || '').trim().toLowerCase() === currentMapelNormalized
     );
   }, [lkpdList, filterFase, filterKelas, filterSemester, filterMapel]);
 
   const filteredRpmForPicker = useMemo(() => {
+    const currentMapelNormalized = filterMapel.trim().toLowerCase();
     return rpmList.filter(r => 
       r.fase === filterFase && 
       r.kelas === filterKelas && 
       r.semester === filterSemester && 
-      r.mataPelajaran === filterMapel
+      (r.mataPelajaran || '').trim().toLowerCase() === currentMapelNormalized
     );
   }, [rpmList, filterFase, filterKelas, filterSemester, filterMapel]);
 
@@ -128,17 +139,14 @@ const LKPDManager: React.FC<LKPDManagerProps> = ({ user }) => {
     const lkpd = lkpdList.find(l => l.id === id);
     if (!lkpd) return;
     const rpm = rpmList.find(r => r.id === lkpd.rpmId);
-    if (!rpm) { 
-      setMessage({ text: 'Data RPM referensi tidak ditemukan!', type: 'error' }); 
-      return; 
-    }
+    if (!rpm) { setMessage({ text: 'Data RPM referensi tidak ditemukan!', type: 'error' }); return; }
 
     setIsLoadingAI(true);
     try {
       const result = await generateLKPDContent(rpm, user.apiKey);
       if (result) {
         await updateDoc(doc(db, "lkpd", id), { ...result });
-        setMessage({ text: 'Konten LKPD Sinkron dengan Langkah RPM!', type: 'success' });
+        setMessage({ text: 'Konten LKPD disusun oleh AI!', type: 'success' });
       }
     } catch (err: any) {
       console.error(err);
@@ -161,45 +169,27 @@ const LKPDManager: React.FC<LKPDManagerProps> = ({ user }) => {
     } catch (e) { setMessage({ text: 'Gagal!', type: 'error' }); }
   };
 
-  const splitByMeeting = (text: string, count: number) => {
-    if (!text) return Array(count).fill('');
-    
-    // Gunakan regex yang lebih fleksibel untuk mendeteksi 'Pertemuan X:'
+  const splitByMeeting = (text: string) => {
+    if (!text) return [];
     const pattern = /Pertemuan\s*\d+\s*:?/gi;
     const parts = text.split(pattern);
-    
-    // Jika bagian pertama kosong (karena teks dimulai dengan label Pertemuan 1), hapus
-    if (parts[0]?.trim() === '') parts.shift();
-    
-    // Jika AI tidak memberikan label Pertemuan sama sekali, masukkan semuanya ke pertemuan 1
-    if (parts.length === 0) return [text, ...Array(count - 1).fill('')];
-
-    const result = Array(count).fill('');
-    for (let i = 0; i < count; i++) {
-      result[i] = (parts[i] || '').trim();
-    }
-    return result;
+    return parts.filter(p => p.trim().length > 0).map(p => p.trim());
   };
 
   const renderListContent = (text: string | undefined, cleanMeetingTags: boolean = false) => {
-    if (!text || text === '-') return <span className="text-slate-400 italic">Belum ada konten untuk bagian ini. Klik SINKRONKAN AI.</span>;
-    
+    if (!text) return '-';
     let processedText = text;
     if (cleanMeetingTags) processedText = text.replace(/Pertemuan\s*\d+\s*:?\s*/gi, '');
-    
-    // Cek apakah teks menggunakan penomoran vertikal (1., 2., 3.)
-    const cleaningRegex = /^\d+[\.\)]\s*/;
-    const steps = processedText.split(/\n+/).filter(s => s.trim().length > 0);
-
+    const steps = processedText.split(/(?=\d+\.)/g).map(s => s.trim()).filter(s => s.length > 0);
     if (steps.length <= 1) return <p className="whitespace-pre-wrap text-justify leading-relaxed">{processedText}</p>;
-    
     return (
       <ul className="space-y-3 list-none">
         {steps.map((step, i) => {
-          const contentPart = step.replace(cleaningRegex, '').trim();
+          const numberPart = step.match(/^\d+\./)?.[0] || '';
+          const contentPart = step.replace(/^\d+\.\s*/, '');
           return (
             <li key={i} className="flex gap-3 items-start">
-              <span className="shrink-0 font-black text-slate-800 mt-1 min-w-[1.2rem]">{i + 1}.</span>
+              {numberPart && <span className="shrink-0 font-black text-slate-800 mt-1">{numberPart}</span>}
               <span className="leading-relaxed text-justify flex-1">{contentPart}</span>
             </li>
           );
@@ -241,43 +231,79 @@ const LKPDManager: React.FC<LKPDManagerProps> = ({ user }) => {
     if (!lkpd) return;
 
     const jPertemuan = lkpd.jumlahPertemuan || 1;
-    const materiParts = splitByMeeting(lkpd.materiRingkas, jPertemuan);
-    const langkahParts = splitByMeeting(lkpd.langkahKerja, jPertemuan);
-    const tugasParts = splitByMeeting(lkpd.tugasMandiri, jPertemuan);
-    const refleksiParts = splitByMeeting(lkpd.refleksi, jPertemuan);
+    const materiParts = splitByMeeting(lkpd.materiRingkas);
+    const langkahParts = splitByMeeting(lkpd.langkahKerja);
+    const tugasParts = splitByMeeting(lkpd.tugasMandiri);
+    const refleksiParts = splitByMeeting(lkpd.refleksi);
 
-    const renderListForWord = (text: string) => {
-      const parts = text.split(/\n+/).map(l => l.replace(/^\d+[\.\)]\s*/, '').trim()).filter(l => l.length > 0);
-      if (parts.length <= 1) return text.replace(/\n/g, '<br/>');
-      return parts.map((p, i) => `<div style="margin-bottom: 3px;">${i+1}. ${p}</div>`).join('');
-    };
-
-    const header = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>LKPD</title><style>body { font-family: 'Arial', sans-serif; font-size: 10pt; } table { border-collapse: collapse; width: 100%; margin-bottom: 20px; } th, td { border: 1px solid black; padding: 5px; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .uppercase { text-transform: uppercase; } .kop { text-align: center; border-bottom: 4px double black; padding-bottom: 10px; margin-bottom: 20px; } .section-title { background-color: #f3f4f6; padding: 5px; font-weight: bold; border-left: 10px solid black; margin-top: 15px; margin-bottom: 10px; } .meeting-header { background-color: #000; color: #fff; padding: 3px 15px; font-weight: bold; display: inline-block; font-size: 9pt; } .label { font-weight: bold; font-size: 9pt; color: #666; text-transform: uppercase; margin-top: 10px; }</style></head><body>`;
+    const header = `<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'><head><meta charset='utf-8'><title>LKPD</title><style>table { border-collapse: collapse; width: 100%; margin-bottom: 20px; } th, td { border: 1px solid black; padding: 5px; font-family: 'Arial'; font-size: 10pt; } .text-center { text-align: center; } .font-bold { font-weight: bold; } .uppercase { text-transform: uppercase; } h1, h2, h3 { margin: 5px 0; text-align: center; } .section-title { background-color: #f3f4f6; padding: 5px; font-weight: bold; border-left: 10px solid black; margin-top: 15px; margin-bottom: 10px; } .meeting-header { background-color: #000; color: #fff; padding: 5px 15px; font-weight: bold; display: inline-block; } .item-label { font-weight: bold; margin-top: 10px; color: #333; }</style></head><body>`;
     const footer = "</body></html>";
     
     let contentHtml = `
-      <div class="kop">
+      <div style="text-align:center">
         <h2 style="margin:0">${settings.schoolName}</h2>
-        <h1 style="margin:5px 0" class="uppercase">LEMBAR KERJA PESERTA DIDIK (LKPD)</h1>
-        <p style="font-size:9pt"><b>${lkpd.mataPelajaran} | SEMESTER ${lkpd.semester} | TA ${activeYear}</b></p>
+        <h1 style="margin:0">LEMBAR KERJA PESERTA DIDIK (LKPD)</h1>
+        <p style="font-size:10pt"><b>${lkpd.mataPelajaran} | SEMESTER ${lkpd.semester} | TA ${activeYear}</b></p>
       </div>
-      <table style="border:none; width:100%"><tr style="border:none"><td style="border:none; width:50%; font-weight: bold;">NAMA: ................................</td><td style="border:none; width:50%; font-weight: bold;">HARI/TGL: ................................</td></tr><tr style="border:none"><td style="border:none; font-weight: bold;">KELAS: ${lkpd.kelas}</td><td style="border:none; font-weight: bold;">KELOMPOK: ................................</td></tr></table>
-      <div class="section-title">TUJUAN PEMBELAJARAN</div><p><i>"${lkpd.tujuanPembelajaran}"</i></p>
-      <div class="section-title">PETUNJUK BELAJAR</div><div style="margin-bottom: 20px;">${renderListForWord(lkpd.petunjuk)}</div>
+      <br/>
+      <table style="border:none; width:100%">
+        <tr style="border:none">
+          <td style="border:none; width:50%">NAMA: ................................</td>
+          <td style="border:none; width:50%">HARI/TGL: ................................</td>
+        </tr>
+        <tr style="border:none">
+          <td style="border:none">KELAS: ${lkpd.kelas}</td>
+          <td style="border:none">KELOMPOK: ................................</td>
+        </tr>
+      </table>
+      <br/>
+      <div class="section-title">TUJUAN PEMBELAJARAN</div>
+      <p><i>"${lkpd.tujuanPembelajaran}"</i></p>
+      <div class="section-title">PETUNJUK BELAJAR</div>
+      <p>${lkpd.petunjuk.replace(/\n/g, '<br/>')}</p>
     `;
 
     for (let i = 0; i < jPertemuan; i++) {
       contentHtml += `
-        <div style="border-top: 1px solid #eee; padding-top: 15px; margin-top: 15px;">
+        <div style="${jPertemuan > 1 ? 'border-top: 1px solid #ccc; margin-top: 20px; padding-top: 10px;' : 'margin-top: 10px;'}">
           ${jPertemuan > 1 ? `<div class="meeting-header">PERTEMUAN ${i + 1}</div>` : ''}
-          <div class="label">Materi Ringkas:</div><div style="padding: 10px; border: 1px solid #ddd; background-color: #fafafa; border-radius: 5px;">${renderListForWord(materiParts[i] || '-')}</div>
-          <table style="border:none; width:100%; margin-top: 10px;"><tr style="border:none"><td style="border:none; width:50%; vertical-align: top; padding-right: 10px;"><div class="label" style="color: #4338ca;">Langkah Kerja:</div><div style="margin-top: 5px;">${renderListForWord(langkahParts[i] || '-')}</div></td><td style="border:none; width:50%; vertical-align: top; padding-left: 10px;"><div class="label" style="color: #be123c;">Tantangan Mandiri:</div><div style="margin-top: 5px;">${renderListForWord(tugasParts[i] || '-')}</div></td></tr></table>
-          <div class="label" style="color: #047857;">Refleksi Belajarku:</div><div style="padding: 10px; border: 1px solid #d1fae5; background-color: #ecfdf5; border-radius: 5px; font-style: italic;">${renderListForWord(refleksiParts[i] || '-')}</div>
+          <p class="item-label">MATERI RINGKAS:</p>
+          <div style="padding: 10px; border: 1px dashed #ccc; background-color: #f9f9f9;">${(materiParts[i] || '-').replace(/\n/g, '<br/>')}</div>
+          <table style="border:none; width:100%; margin-top: 10px;">
+            <tr style="border:none">
+              <td style="border:none; width:50%; vertical-align: top;">
+                <p class="item-label">LANGKAH KERJA:</p>
+                <p>${(langkahParts[i] || '-').replace(/\n/g, '<br/>')}</p>
+              </td>
+              <td style="border:none; width:50%; vertical-align: top;">
+                <p class="item-label">TANTANGAN MANDIRI:</p>
+                <p>${(tugasParts[i] || '-').replace(/\n/g, '<br/>')}</p>
+              </td>
+            </tr>
+          </table>
+          <p class="item-label">REFLEKSI BELAJARKU:</p>
+          <p><i>${(refleksiParts[i] || '-').replace(/\n/g, '<br/>')}</i></p>
         </div>
       `;
     }
 
-    contentHtml += `<br/><br/><table style="border:none; width:100%"><tr style="border:none"><td style="border:none; text-align:center; width:30%">NILAI<br/><br/><div style="border:1px solid black; width:50pt; height:50pt; line-height:50pt; margin:auto; font-size:18pt; font-weight: bold;">?</div></td><td style="border:none; width:40%"></td><td style="border:none; text-align:center; width:30%">PARAF GURU<br/><br/><br/><br/><br/><b>${user.name}</b></td></tr></table>`;
+    contentHtml += `
+      <br/><br/>
+      <table style="border:none; width:100%">
+        <tr style="border:none">
+          <td style="border:none; text-align:center; width:30%">
+            NILAI<br/><br/>
+            <div style="border:2px solid black; width:60px; height:60px; line-height:60px; margin:auto; font-size:20pt">?</div>
+          </td>
+          <td style="border:none; width:40%"></td>
+          <td style="border:none; text-align:center; width:30%">
+            PARAF GURU<br/><br/><br/><br/><br/>
+            <b>${user.name}</b>
+          </td>
+        </tr>
+      </table>
+    `;
+
     const blob = new Blob(['\ufeff', header + contentHtml + footer], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -287,16 +313,13 @@ const LKPDManager: React.FC<LKPDManagerProps> = ({ user }) => {
     URL.revokeObjectURL(url);
   };
 
-  const isClassLocked = user.role === 'guru' && user.teacherType === 'kelas';
-  const availableMapel = user.role === 'admin' ? MATA_PELAJARAN : (user.mapelDiampu || []);
-
   if (isPrintMode && isEditing) {
     const lkpd = lkpdList.find(l => l.id === isEditing)!;
     const jPertemuan = lkpd.jumlahPertemuan || 1;
-    const materiParts = splitByMeeting(lkpd.materiRingkas, jPertemuan);
-    const langkahParts = splitByMeeting(lkpd.langkahKerja, jPertemuan);
-    const tugasParts = splitByMeeting(lkpd.tugasMandiri, jPertemuan);
-    const refleksiParts = splitByMeeting(lkpd.refleksi, jPertemuan);
+    const materiParts = splitByMeeting(lkpd.materiRingkas);
+    const langkahParts = splitByMeeting(lkpd.langkahKerja);
+    const tugasParts = splitByMeeting(lkpd.tugasMandiri);
+    const refleksiParts = splitByMeeting(lkpd.refleksi);
 
     return (
       <div className="bg-white min-h-screen text-slate-900 p-8 font-sans print:p-0">
@@ -314,6 +337,7 @@ const LKPDManager: React.FC<LKPDManagerProps> = ({ user }) => {
             <h2 className="text-2xl font-black uppercase mt-1">LEMBAR KERJA PESERTA DIDIK (LKPD)</h2>
             <p className="text-xs font-bold mt-2 uppercase tracking-widest">{lkpd.mataPelajaran} | SEMESTER {lkpd.semester} | TA {activeYear}</p>
           </div>
+
           <div className="mb-8 grid grid-cols-2 gap-8 text-[12px] font-bold uppercase">
              <div className="space-y-2">
                 <div className="flex"><span>NAMA</span><span className="ml-8 mr-2">:</span><div className="flex-1 border-b border-dotted border-black"></div></div>
@@ -324,29 +348,76 @@ const LKPDManager: React.FC<LKPDManagerProps> = ({ user }) => {
                 <div className="flex"><span>KELOMPOK</span><span className="ml-2 mr-2">:</span><div className="flex-1 border-b border-dotted border-black"></div></div>
              </div>
           </div>
+
           <div className="space-y-8 flex-1">
-             <div><h3 className="bg-slate-100 p-2 font-black text-xs border-l-8 border-black uppercase mb-3">Tujuan Pembelajaran</h3><p className="text-[12px] leading-relaxed font-bold italic">"{lkpd.tujuanPembelajaran}"</p></div>
-             <div><h3 className="bg-slate-100 p-2 font-black text-xs border-l-8 border-black uppercase mb-3">Petunjuk Belajar</h3><div className="text-[12px] text-slate-700">{renderListContent(lkpd.petunjuk)}</div></div>
+             <div>
+               <h3 className="bg-slate-100 p-2 font-black text-xs border-l-8 border-black uppercase mb-3">Tujuan Pembelajaran</h3>
+               <p className="text-[12px] leading-relaxed font-bold italic">"{lkpd.tujuanPembelajaran}"</p>
+             </div>
+
+             <div>
+               <h3 className="bg-slate-100 p-2 font-black text-xs border-l-8 border-black uppercase mb-3">Petunjuk Belajar</h3>
+               <div className="text-[12px] text-slate-700">{renderListContent(lkpd.petunjuk)}</div>
+             </div>
+
+             {/* Loop Pertemuan */}
              {Array.from({ length: jPertemuan }).map((_, idx) => (
-               <div key={idx} className={`space-y-6 ${idx > 0 || jPertemuan > 1 ? 'pt-10 border-t-2 border-dashed border-slate-200 mt-10' : ''} break-inside-avoid`}>
-                 {jPertemuan > 1 && (<div className="flex items-center gap-3"><div className="bg-black text-white px-4 py-1 text-[10px] font-black uppercase tracking-widest">PERTEMUAN {idx + 1}</div><div className="flex-1 h-0.5 bg-slate-200"></div></div>)}
-                 <div><p className="font-black text-[11px] mb-2 uppercase text-slate-500">Materi Ringkas:</p><div className="p-4 border-2 border-dotted border-slate-300 rounded-xl bg-slate-50 text-[12px] leading-relaxed">{renderListContent(materiParts[idx] || '-', true)}</div></div>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   <div><p className="font-black text-[11px] mb-2 uppercase text-indigo-700">Langkah Kerja:</p><div className="text-[12px]">{renderListContent(langkahParts[idx] || '-', true)}</div></div>
-                   <div><p className="font-black text-[11px] mb-2 uppercase text-rose-700">Tantangan Mandiri:</p><div className="text-[12px]">{renderListContent(tugasParts[idx] || '-', true)}</div></div>
+               <div key={idx} className={`space-y-6 ${idx > 0 || jPertemuan > 1 ? 'pt-6 border-t border-slate-200' : ''} break-inside-avoid`}>
+                 {jPertemuan > 1 && (
+                   <div className="flex items-center gap-3">
+                     <div className="bg-black text-white px-4 py-1 text-[10px] font-black uppercase tracking-widest">PERTEMUAN {idx + 1}</div>
+                     <div className="flex-1 h-0.5 bg-slate-200"></div>
+                   </div>
+                 )}
+
+                 <div>
+                   <p className="font-black text-[11px] mb-2 uppercase text-slate-500">Materi Ringkas:</p>
+                   <div className="p-4 border-2 border-dotted border-slate-300 rounded-xl bg-slate-50 text-[12px] leading-relaxed">
+                      {renderListContent(materiParts[idx] || '-', true)}
+                   </div>
                  </div>
-                 <div><p className="font-black text-[11px] mb-2 uppercase text-emerald-700">Refleksi Belajarku:</p><div className="text-[12px] italic text-slate-600 bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">{renderListContent(refleksiParts[idx] || '-', true)}</div></div>
+
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   <div>
+                     <p className="font-black text-[11px] mb-2 uppercase text-indigo-700">Langkah Kerja:</p>
+                     <div className="text-[12px]">{renderListContent(langkahParts[idx] || '-', true)}</div>
+                   </div>
+                   <div>
+                     <p className="font-black text-[11px] mb-2 uppercase text-rose-700">Tantangan Mandiri:</p>
+                     <div className="text-[12px]">{renderListContent(tugasParts[idx] || '-', true)}</div>
+                   </div>
+                 </div>
+
+                 <div>
+                   <p className="font-black text-[11px] mb-2 uppercase text-emerald-700">Refleksi Belajarku:</p>
+                   <div className="text-[12px] italic text-slate-600 bg-emerald-50/50 p-4 rounded-xl border border-emerald-100">
+                      {renderListContent(refleksiParts[idx] || '-', true)}
+                   </div>
+                 </div>
                </div>
              ))}
           </div>
-          <div className="mt-12 pt-8 border-t-2 border-black flex justify-between items-center text-[10px] font-black uppercase"><div className="text-center"><p>NILAI</p><div className="w-20 h-20 border-2 border-black mx-auto mt-2 flex items-center justify-center text-2xl">?</div></div><div className="text-center"><p>PARAF GURU</p><div className="h-20"></div><p className="border-b border-black inline-block min-w-[150px]">{user.name}</p></div></div>
+
+          <div className="mt-12 pt-8 border-t-2 border-black flex justify-between items-center text-[10px] font-black uppercase">
+             <div className="text-center">
+                <p>NILAI</p>
+                <div className="w-20 h-20 border-2 border-black mx-auto mt-2 flex items-center justify-center text-2xl">?</div>
+             </div>
+             <div className="text-center">
+                <p>PARAF GURU</p>
+                <div className="h-20"></div>
+                <p className="border-b border-black inline-block min-w-[150px]">{user.name}</p>
+             </div>
+          </div>
         </div>
       </div>
     );
   }
 
+  const isClassLocked = user.role === 'guru' && user.teacherType === 'kelas';
+
   return (
-    <div className="space-y-6 pb-20 animate-in fade-in duration-500 relative theme-dpl">
+    <div className="space-y-6 pb-20 animate-in fade-in duration-500 relative">
       {message && (
         <div className={`fixed top-24 right-8 z-[100] flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border ${message.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
           <CheckCircle2 size={20}/><span className="text-sm font-black uppercase tracking-tight">{message.text}</span>
@@ -354,14 +425,32 @@ const LKPDManager: React.FC<LKPDManagerProps> = ({ user }) => {
       )}
 
       {deleteConfirmId && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[250] flex items-center justify-center p-4"><div className="bg-white rounded-[32px] shadow-2xl w-full max-sm overflow-hidden animate-in zoom-in-95"><div className="p-8 text-center"><div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6 mx-auto"><AlertTriangle size={32} /></div><h3 className="text-xl font-black text-slate-900 uppercase mb-2">Hapus LKPD</h3><p className="text-slate-500 font-medium text-sm leading-relaxed">Hapus lembar kerja ini?</p></div><div className="p-4 bg-slate-50 flex gap-3"><button onClick={() => setDeleteConfirmId(null)} className="flex-1 px-6 py-3 rounded-xl text-xs font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-100">BATAL</button><button onClick={executeDelete} className="flex-1 px-6 py-3 rounded-xl text-xs font-black text-white bg-red-600 hover:bg-red-700 shadow-lg">HAPUS</button></div></div></div>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[250] flex items-center justify-center p-4">
+          <div className="bg-white rounded-[32px] shadow-2xl w-full max-sm overflow-hidden animate-in zoom-in-95">
+            <div className="p-8 text-center">
+              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6 mx-auto"><AlertTriangle size={32} /></div>
+              <h3 className="text-xl font-black text-slate-900 uppercase mb-2">Hapus LKPD</h3>
+              <p className="text-slate-500 font-medium text-sm leading-relaxed">Hapus lembar kerja ini dari database cloud?</p>
+            </div>
+            <div className="p-4 bg-slate-50 flex gap-3">
+              <button onClick={() => setDeleteConfirmId(null)} className="flex-1 px-6 py-3 rounded-xl text-xs font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-100">BATAL</button>
+              <button onClick={executeDelete} className="flex-1 px-6 py-3 rounded-xl text-xs font-black text-white bg-red-600 hover:bg-red-700 shadow-lg">YA, HAPUS</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showRpmPicker && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-2xl max-h-[80vh] rounded-[40px] shadow-2xl overflow-hidden flex flex-col">
             <div className="p-8 bg-slate-900 text-white flex justify-between items-center">
-              <div className="flex items-center gap-4"><div className="p-3 bg-blue-500 rounded-2xl shadow-lg"><Search size={24}/></div><div><h3 className="font-black uppercase text-lg tracking-widest leading-none">Pilih Referensi RPM</h3><p className="text-xs text-slate-400 font-bold mt-1 uppercase">UNTUK KELAS {filterKelas} | SEMESTER {filterSemester}</p></div></div>
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-blue-500 rounded-2xl shadow-lg"><Search size={24}/></div>
+                <div>
+                  <h3 className="font-black uppercase text-lg tracking-widest leading-none">Pilih Referensi RPM</h3>
+                  <p className="text-xs text-slate-400 font-bold mt-1 uppercase">UNTUK KELAS {filterKelas} | SEMESTER {filterSemester}</p>
+                </div>
+              </div>
               <button onClick={() => setShowRpmPicker(false)} className="p-2 hover:bg-white/10 rounded-full"><X size={24}/></button>
             </div>
             <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50">
@@ -372,7 +461,10 @@ const LKPDManager: React.FC<LKPDManagerProps> = ({ user }) => {
                   <button key={rpm.id} onClick={() => handleSelectRpm(rpm)} className="w-full text-left p-6 bg-white border border-slate-200 rounded-[32px] hover:border-blue-500 transition-all group shadow-sm hover:shadow-md">
                     <div className="flex justify-between items-center gap-6">
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1"><h4 className="text-sm font-black text-slate-900 uppercase line-clamp-1">{rpm.materi}</h4><span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-[8px] font-black">{rpm.jumlahPertemuan || 1} PERTEMUAN</span></div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="text-sm font-black text-slate-900 uppercase line-clamp-1">{rpm.materi}</h4>
+                          <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded text-[8px] font-black">{rpm.jumlahPertemuan || 1} PERTEMUAN</span>
+                        </div>
                         <p className="text-[11px] text-slate-500 italic leading-relaxed line-clamp-2">{rpm.tujuanPembelajaran}</p>
                       </div>
                       <Plus className="text-blue-500 opacity-0 group-hover:opacity-100 transition-all" size={24}/>
@@ -389,7 +481,13 @@ const LKPDManager: React.FC<LKPDManagerProps> = ({ user }) => {
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[60] flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-7xl max-h-[95vh] rounded-[40px] shadow-2xl overflow-hidden flex flex-col border border-white/20">
             <div className="p-6 bg-slate-900 text-white flex justify-between items-center shrink-0">
-               <div className="flex items-center gap-3"><div className="p-2 bg-blue-500 rounded-xl shadow-lg"><PenTool size={20}/></div><div><h3 className="font-black uppercase text-sm tracking-widest leading-none">Editor LKPD</h3><p className="text-[10px] text-slate-400 font-bold tracking-tighter mt-1 uppercase">SINKRONISASI 3M RPM AKTIF</p></div></div>
+               <div className="flex items-center gap-3">
+                 <div className="p-2 bg-blue-500 rounded-xl shadow-lg"><PenTool size={20}/></div>
+                 <div>
+                   <h3 className="font-black uppercase text-sm tracking-widest leading-none">Editor LKPD {lkpdList.find(l => l.id === isEditing)?.jumlahPertemuan || 1} Pertemuan</h3>
+                   <p className="text-[10px] text-slate-400 font-bold tracking-tighter mt-1 uppercase">SINKRONISASI CLOUD AKTIF</p>
+                 </div>
+               </div>
                <div className="flex gap-2">
                  <button onClick={() => setIsPrintMode(true)} className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 rounded-2xl text-[10px] font-black flex items-center gap-2 transition-all"><Printer size={14}/> PRATINJAU</button>
                  <button onClick={() => setIsEditing(null)} className="px-5 py-2.5 bg-red-600 hover:bg-red-700 rounded-2xl text-[10px] font-black transition-all">TUTUP</button>
@@ -397,42 +495,60 @@ const LKPDManager: React.FC<LKPDManagerProps> = ({ user }) => {
             </div>
             <div className="p-8 overflow-y-auto space-y-10 no-scrollbar bg-white">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                <div className="flex-1">
-                   <div className="flex items-center gap-2"><div className="w-1.5 h-6 bg-blue-600 rounded-full"></div><h4 className="font-black text-slate-800 uppercase text-xs tracking-widest">Konten Lembar Kerja</h4></div>
-                   {lkpdList.find(l => l.id === isEditing)?.rpmId && (
-                     <div className="mt-1 flex items-center gap-2 text-[10px] font-bold text-blue-600 uppercase">
-                        <Rocket size={10}/> Referensi: {rpmList.find(r => r.id === lkpdList.find(l => l.id === isEditing)?.rpmId)?.materi}
-                     </div>
-                   )}
-                </div>
+                <div className="flex items-center gap-2"><div className="w-1.5 h-6 bg-blue-600 rounded-full"></div><h4 className="font-black text-slate-800 uppercase text-xs tracking-widest">Konten Lembar Kerja</h4></div>
                 <button onClick={() => handleGenerateAI(isEditing!)} disabled={isLoadingAI} className="flex items-center gap-2 bg-indigo-600 text-white px-8 py-3 rounded-2xl text-xs font-black shadow-xl hover:bg-indigo-700 active:scale-95 disabled:opacity-50 transition-all">
-                  {isLoadingAI ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16}/>} SINKRONKAN DENGAN RPM (AI)
+                  {isLoadingAI ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16}/>} SUSUN OTOMATIS (AI)
                 </button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="space-y-6">
-                  <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Judul LKPD</label><input className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-black text-slate-800 outline-none" value={lkpdList.find(l => l.id === isEditing)?.judul} onChange={e => updateLKPD(isEditing!, 'judul', e.target.value)} /></div>
-                  <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Petunjuk Belajar</label><textarea className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs min-h-[100px]" value={lkpdList.find(l => l.id === isEditing)?.petunjuk} onChange={e => updateLKPD(isEditing!, 'petunjuk', e.target.value)} /></div>
-                  <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 flex items-center gap-2"><Brain size={14} className="text-blue-500"/> I. Materi Ringkas (Semua Pertemuan)</label><textarea className="w-full bg-blue-50/20 border border-blue-100 rounded-2xl p-4 text-xs min-h-[180px]" value={lkpdList.find(l => l.id === isEditing)?.materiRingkas} placeholder="Gunakan header 'Pertemuan 1:', 'Pertemuan 2:', dst..." onChange={e => updateLKPD(isEditing!, 'materiRingkas', e.target.value)} /></div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Judul LKPD</label>
+                    <input className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-black text-slate-800 outline-none" value={lkpdList.find(l => l.id === isEditing)?.judul} onChange={e => updateLKPD(isEditing!, 'judul', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Petunjuk Belajar (Umum)</label>
+                    <textarea className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs min-h-[120px]" value={lkpdList.find(l => l.id === isEditing)?.petunjuk} onChange={e => updateLKPD(isEditing!, 'petunjuk', e.target.value)} placeholder="Tulis instruksi langkah demi langkah..." />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Materi Ringkas (Gunakan Pertemuan X: jika perlu)</label>
+                    <textarea className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs min-h-[200px]" value={lkpdList.find(l => l.id === isEditing)?.materiRingkas} onChange={e => updateLKPD(isEditing!, 'materiRingkas', e.target.value)} placeholder="Pertemuan 1: ..." />
+                  </div>
                 </div>
                 <div className="space-y-6">
-                  <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 flex items-center gap-2"><Zap size={14} className="text-indigo-500"/> II. Langkah Kerja (Semua Pertemuan)</label><textarea className="w-full bg-indigo-50/20 border border-indigo-100 rounded-2xl p-4 text-xs min-h-[180px]" value={lkpdList.find(l => l.id === isEditing)?.langkahKerja} placeholder="Gunakan header 'Pertemuan 1:', 'Pertemuan 2:', dst..." onChange={e => updateLKPD(isEditing!, 'langkahKerja', e.target.value)} /></div>
-                  <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 flex items-center gap-2"><PenTool size={14} className="text-rose-500"/> III. Tantangan Mandiri (Semua Pertemuan)</label><textarea className="w-full bg-rose-50/20 border border-rose-100 rounded-2xl p-4 text-xs min-h-[180px]" value={lkpdList.find(l => l.id === isEditing)?.tugasMandiri} placeholder="Gunakan header 'Pertemuan 1:', 'Pertemuan 2:', dst..." onChange={e => updateLKPD(isEditing!, 'tugasMandiri', e.target.value)} /></div>
-                  <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 flex items-center gap-2"><RefreshCw size={14} className="text-emerald-500"/> IV. Refleksi Belajarku (Semua Pertemuan)</label><textarea className="w-full bg-emerald-50/20 border border-emerald-100 rounded-2xl p-4 text-xs min-h-[120px]" value={lkpdList.find(l => l.id === isEditing)?.refleksi} placeholder="Gunakan header 'Pertemuan 1:', 'Pertemuan 2:', dst..." onChange={e => updateLKPD(isEditing!, 'refleksi', e.target.value)} /></div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Langkah Kerja (Gunakan Pertemuan X: jika perlu)</label>
+                    <textarea className="w-full bg-blue-50/30 border border-blue-100 rounded-2xl p-4 text-xs min-h-[200px]" value={lkpdList.find(l => l.id === isEditing)?.langkahKerja} onChange={e => updateLKPD(isEditing!, 'langkahKerja', e.target.value)} placeholder="Pertemuan 1: ..." />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Tugas Mandiri (Gunakan Pertemuan X: jika perlu)</label>
+                    <textarea className="w-full bg-rose-50/30 border border-rose-100 rounded-2xl p-4 text-xs min-h-[200px]" value={lkpdList.find(l => l.id === isEditing)?.tugasMandiri} onChange={e => updateLKPD(isEditing!, 'tugasMandiri', e.target.value)} placeholder="Pertemuan 1: ..." />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-400 uppercase mb-2">Pertanyaan Refleksi (Gunakan Pertemuan X: jika perlu)</label>
+                    <textarea className="w-full bg-emerald-50/30 border border-emerald-100 rounded-2xl p-4 text-xs min-h-[200px]" value={lkpdList.find(l => l.id === isEditing)?.refleksi} onChange={e => updateLKPD(isEditing!, 'refleksi', e.target.value)} placeholder="Pertemuan 1: ..." />
+                  </div>
                 </div>
               </div>
             </div>
-            <div className="p-6 bg-white border-t border-slate-100 flex justify-end shrink-0"><button onClick={() => setIsEditing(null)} className="bg-slate-900 text-white px-12 py-3 rounded-2xl text-[11px] font-black shadow-lg">SIMPAN & SELESAI</button></div>
+            <div className="p-6 bg-white border-t border-slate-100 flex justify-end shrink-0">
+              <button onClick={() => setIsEditing(null)} className="bg-slate-900 text-white px-12 py-3 rounded-2xl text-[11px] font-black shadow-lg">SIMPAN & SELESAI</button>
+            </div>
           </div>
         </div>
       )}
 
       <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col xl:flex-row gap-4 items-end">
          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
-           <div><label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Mapel</label><select className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs font-black" value={filterMapel} onChange={e => setFilterMapel(e.target.value)}>{availableMapel.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
+           <div>
+            <label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Mapel</label>
+            <select className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs font-black outline-none focus:ring-2 focus:ring-blue-500" value={filterMapel} onChange={e => setFilterMapel(e.target.value)}>
+              {availableMapel.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+           </div>
            <div><label className="text-[10px] font-black text-slate-400 uppercase mb-2 block flex items-center gap-1">Kelas {isClassLocked && <Lock size={10} className="text-amber-500" />}</label><select disabled={isClassLocked} className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3.5 text-xs font-black disabled:bg-slate-100" value={filterKelas} onChange={e => handleKelasChange(e.target.value as Kelas)}>{['1', '2', '3', '4', '5', '6'].map(k => <option key={k} value={k}>Kelas {k}</option>)}</select></div>
-           <div><label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Semester</label><select className="w-full bg-white border border-slate-200 rounded-2xl p-3.5 text-xs font-black" value={filterSemester} onChange={e => setFilterSemester(e.target.value as '1' | '2')}><option value="1">1 (Ganjil)</option><option value="2">2 (Genap)</option></select></div>
+           <div><label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Semester</label><select className="w-full bg-white border border-slate-200 rounded-2xl p-3.5 text-xs font-black outline-none focus:ring-2 focus:ring-blue-500" value={filterSemester} onChange={e => setFilterSemester(e.target.value as '1' | '2')}><option value="1">1 (Ganjil)</option><option value="2">2 (Genap)</option></select></div>
            <div><label className="text-[10px] font-black text-slate-400 uppercase mb-2 block">Fase</label><div className="bg-slate-100 p-3.5 rounded-2xl text-xs font-black text-slate-500 border border-slate-200">{filterFase}</div></div>
          </div>
          <button onClick={() => setShowRpmPicker(true)} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-xs shadow-xl active:scale-95 transition-all flex items-center gap-2"><Plus size={18}/> BUAT LKPD</button>

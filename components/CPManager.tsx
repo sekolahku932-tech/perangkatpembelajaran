@@ -11,12 +11,13 @@ interface CPManagerProps {
 const CPManager: React.FC<CPManagerProps> = ({ user }) => {
   const [cps, setCps] = useState<CapaianPembelajaran[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterFase, setFilterFase] = useState<Fase>(Fase.A);
+  const filterFase = Fase.C; // Locked to Fase C
+  const filterKelas = '5'; // Locked to Class 5
   const [filterMapel, setFilterMapel] = useState<string>(MATA_PELAJARAN[0]);
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [isPrintMode, setIsPrintMode] = useState(false);
   const [formData, setFormData] = useState<Partial<CapaianPembelajaran>>({
-    fase: Fase.A,
+    fase: Fase.C,
     mataPelajaran: MATA_PELAJARAN[0],
     kode: '',
     elemen: '',
@@ -27,32 +28,11 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
   const printRef = useRef<HTMLDivElement>(null);
 
   const [settings, setSettings] = useState<SchoolSettings>({
-    schoolName: 'SD NEGERI 5 BILATO',
+    schoolName: 'SDN SONDANA',
     address: 'Kecamatan Bilato, Kabupaten Gorontalo',
     principalName: 'Nama Kepala Sekolah',
     principalNip: '-'
   });
-
-  // Penguncian Fase bagi guru kelas: Guru tidak bisa merubah fase di luar penempatan kelasnya.
-  const isClassLocked = user.role === 'guru' && user.teacherType === 'kelas';
-
-  useEffect(() => {
-    if (user.role === 'guru') {
-      if (user.mapelDiampu && user.mapelDiampu.length > 0) {
-        setFilterMapel(user.mapelDiampu[0]);
-      }
-      
-      let targetFase = filterFase;
-      if (['1', '2'].includes(user.kelas)) targetFase = Fase.A;
-      else if (['3', '4'].includes(user.kelas)) targetFase = Fase.B;
-      else if (['5', '6'].includes(user.kelas)) targetFase = Fase.C;
-      
-      if (isClassLocked) {
-        setFilterFase(targetFase);
-        setFormData(prev => ({ ...prev, fase: targetFase }));
-      }
-    }
-  }, [user, isClassLocked]);
 
   useEffect(() => {
     setLoading(true);
@@ -76,11 +56,21 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
     return () => { unsubSettings(); unsubscribe(); };
   }, []);
 
-  const sortedAndFilteredCps = useMemo(() => {
-    return cps
-      .filter(cp => cp.fase === filterFase && cp.mataPelajaran === filterMapel)
-      .sort((a, b) => (a.kode || '').localeCompare(b.kode || '', undefined, { numeric: true, sensitivity: 'base' }));
-  }, [cps, filterFase, filterMapel]);
+  // FIX: If guru has no assigned mapel, show all by default
+  const availableMapel = useMemo(() => {
+    if (user.role === 'admin' || !user.mapelDiampu || user.mapelDiampu.length === 0) {
+      return MATA_PELAJARAN;
+    }
+    return user.mapelDiampu;
+  }, [user]);
+
+  useEffect(() => {
+    if (!availableMapel.includes(filterMapel)) {
+      setFilterMapel(availableMapel[0]);
+    }
+  }, [availableMapel]);
+
+  const filteredCps = cps.filter(cp => cp.fase === filterFase && cp.mataPelajaran === filterMapel);
 
   const handleExportWord = () => {
     const header = `
@@ -112,7 +102,7 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
           </tr>
         </thead>
         <tbody>
-          ${sortedAndFilteredCps.map((cp, idx) => `
+          ${filteredCps.map((cp, idx) => `
             <tr>
               <td class="text-center">${idx + 1}</td>
               <td class="text-center">${cp.kode}</td>
@@ -153,8 +143,6 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
     try { await deleteDoc(doc(db, "cps", deleteConfirm)); setDeleteConfirm(null); } catch (error) { console.error(error); }
   };
 
-  const availableMapel = user.role === 'admin' ? MATA_PELAJARAN : user.mapelDiampu;
-
   const handlePrint = () => {
     const content = printRef.current?.innerHTML;
     const printWindow = window.open('', '_blank');
@@ -162,7 +150,7 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
       printWindow.document.write(`
         <html>
           <head>
-            <title>Cetak CP - SDN 5 Bilato</title>
+            <title>Cetak CP - SDN SONDANA</title>
             <script src="https://cdn.tailwindcss.com"></script>
             <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
             <style>
@@ -180,69 +168,6 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
       printWindow.document.close();
     }
   };
-
-  if (isPrintMode) {
-    return (
-      <div className="bg-white p-12 min-h-screen text-slate-900 font-serif">
-        <div className="no-print fixed top-6 right-6 flex gap-3 z-[300]">
-          <button onClick={() => setIsPrintMode(false)} className="bg-slate-800 text-white px-6 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 shadow-2xl hover:bg-black transition-all">
-            <EyeOff size={16} /> KEMBALI
-          </button>
-          <button onClick={handleExportWord} className="bg-blue-600 text-white px-6 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 shadow-2xl hover:bg-blue-700 transition-all">
-            <FileDown size={16} /> WORD
-          </button>
-          <button onClick={handlePrint} className="bg-rose-600 text-white px-6 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 shadow-2xl hover:bg-rose-700 transition-all">
-            <Printer size={16} /> CETAK PDF
-          </button>
-        </div>
-
-        <div ref={printRef}>
-          <div className="text-center mb-10">
-            <h1 className="text-2xl font-black uppercase border-b-4 border-black pb-2 inline-block tracking-tight text-slate-900">Capaian Pembelajaran (CP)</h1>
-            <h2 className="text-xl font-bold mt-3 uppercase text-slate-800">{settings.schoolName}</h2>
-            <div className="flex justify-center gap-10 mt-6 text-xs font-black uppercase tracking-widest text-slate-600 font-sans">
-              <span>MAPEL: {filterMapel}</span>
-              <span>FASE: {filterFase}</span>
-            </div>
-          </div>
-
-          <table className="w-full border-collapse border-2 border-black text-[10px]">
-            <thead>
-              <tr className="bg-slate-100 h-12 uppercase font-black text-center">
-                <th className="border-2 border-black w-10">NO</th>
-                <th className="border-2 border-black px-2 w-20">KODE</th>
-                <th className="border-2 border-black px-4 text-left w-48">ELEMEN</th>
-                <th className="border-2 border-black px-4 text-left">DESKRIPSI CAPAIAN PEMBELAJARAN</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedAndFilteredCps.length === 0 ? (
-                <tr><td colSpan={4} className="border-2 border-black p-10 text-center italic text-slate-400">Belum ada data CP.</td></tr>
-              ) : (
-                sortedAndFilteredCps.map((cp, idx) => (
-                  <tr key={cp.id} className="break-inside-avoid">
-                    <td className="border-2 border-black p-3 text-center font-bold">{idx + 1}</td>
-                    <td className="border-2 border-black p-3 text-center font-black uppercase">{cp.kode}</td>
-                    <td className="border-2 border-black p-3 font-black uppercase leading-tight">{cp.elemen}</td>
-                    <td className="border-2 border-black p-3 leading-relaxed text-justify">{cp.deskripsi}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-
-          <div className="mt-16 flex justify-between items-start text-xs px-12 font-sans uppercase font-black tracking-tight break-inside-avoid">
-             <div className="text-center w-72">
-                <p>Mengetahui,</p> <p>Kepala Sekolah</p> <div className="h-24"></div> <p className="border-b border-black inline-block min-w-[200px]">{settings.principalName}</p> <p className="no-underline mt-1 font-normal">NIP. {settings.principalNip}</p>
-             </div>
-             <div className="text-center w-72">
-                <p>Bilato, {new Date().toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p> <p>Guru Kelas/Mapel</p> <div className="h-24"></div> <p className="border-b border-black inline-block min-w-[200px]">{user?.name || '[Nama Guru]'}</p> <p className="no-underline mt-1 font-normal">NIP. {user?.nip || '...................'}</p>
-             </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
@@ -270,7 +195,7 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
             <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-lg"><BookOpen size={24} /></div>
             <div>
               <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight leading-none">CAPAIAN PEMBELAJARAN (CP)</h2>
-              <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Status: Data Cloud Sinkron (Diurutkan sesuai Kode)</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Status: Data Cloud Sinkron</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -280,12 +205,17 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-50 p-6 rounded-[24px] border border-slate-100">
           <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest flex items-center gap-1">Fase {isClassLocked && <Lock size={10} className="text-amber-500" />}</label>
-            <select className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none disabled:bg-slate-100" value={filterFase} disabled={isClassLocked} onChange={(e) => setFilterFase(e.target.value as Fase)}>
-              {Object.values(Fase).map(f => <option key={f} value={f}>{f}</option>)}
+            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest flex items-center gap-1">Fase (Terkunci) <Lock size={10} className="text-amber-500" /></label>
+            <div className="w-full bg-slate-100 border border-slate-200 rounded-xl p-3 text-sm font-black text-slate-500">
+              FASE C
+            </div>
+          </div>
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Pilih Mata Pelajaran</label>
+            <select className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:ring-2 focus:ring-blue-500" value={filterMapel} onChange={(e) => setFilterMapel(e.target.value)}>
+              {availableMapel.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           </div>
-          <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Mapel</label><select className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none" value={filterMapel} onChange={(e) => setFilterMapel(e.target.value)}>{availableMapel.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
         </div>
       </div>
 
@@ -328,9 +258,9 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
                 <tbody className="divide-y divide-slate-100">
                   {loading ? (
                     <tr><td colSpan={5} className="py-20 text-center"><Loader2 className="animate-spin inline-block text-blue-600" /></td></tr>
-                  ) : sortedAndFilteredCps.length === 0 ? (
-                    <tr><td colSpan={5} className="py-32 text-center text-slate-300 font-bold uppercase text-xs tracking-widest">Belum ada data CP untuk filter ini</td></tr>
-                  ) : sortedAndFilteredCps.map((cp, idx) => (
+                  ) : filteredCps.length === 0 ? (
+                    <tr><td colSpan={5} className="py-32 text-center text-slate-300 font-bold uppercase text-xs tracking-widest">Belum ada data CP untuk Mapel ini</td></tr>
+                  ) : filteredCps.map((cp, idx) => (
                     <tr key={cp.id} className="group hover:bg-slate-50 transition-colors align-top">
                       <td className="px-6 py-6 text-center font-black text-slate-300">{idx + 1}</td>
                       <td className="px-6 py-6 font-black text-xs text-blue-600 uppercase">{cp.kode}</td>

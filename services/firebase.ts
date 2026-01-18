@@ -1,4 +1,3 @@
-
 // Use namespaced imports to ensure compatibility with various environment configurations
 // and resolve "no exported member" errors in the Firebase SDK.
 import firebase from 'firebase/compat/app';
@@ -6,13 +5,13 @@ import 'firebase/compat/auth';
 import 'firebase/compat/firestore';
 
 const firebaseConfig = {
-  apiKey: "AIzaSyBPrWYr0JsnVqvxXsR-WwSBzvd9o691Few",
-  authDomain: "perangkat-pembelajaran-23ae8.firebaseapp.com",
-  projectId: "perangkat-pembelajaran-23ae8",
-  storageBucket: "perangkat-pembelajaran-23ae8.firebasestorage.app",
-  messagingSenderId: "64147390542",
-  appId: "1:64147390542:web:2783b65777e1f2ad64c31f",
-  measurementId: "G-3J779MMSM5"
+  apiKey: "AIzaSyAkrYHlryfpZN6VBUXEHMpsxtZqshl3Prw",
+  authDomain: "perangkat-1340d.firebaseapp.com",
+  projectId: "perangkat-1340d",
+  storageBucket: "perangkat-1340d.firebasestorage.app",
+  messagingSenderId: "466442910626",
+  appId: "1:466442910626:web:3ab84f3ef91e17206f90fb",
+  measurementId: "G-CXNHZW9CES"
 };
 
 // Initialize Firebase App

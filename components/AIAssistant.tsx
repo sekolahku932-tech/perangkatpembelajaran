@@ -32,11 +32,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const chatInstance = useRef<any>(null);
 
-  // Reset chat instance if API key changes
-  useEffect(() => {
-    chatInstance.current = null;
-  }, [user.apiKey]);
-
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);

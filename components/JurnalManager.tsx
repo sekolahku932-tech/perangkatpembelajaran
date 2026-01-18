@@ -7,7 +7,7 @@ import {
   Sparkles, AlertCircle, Info, Lock
 } from 'lucide-react';
 import { db, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from '../services/firebase';
-import { generateJurnalNarasi } from '../services/geminiService';
+import { GoogleGenAI } from "@google/genai";
 
 interface JurnalManagerProps {
   user: User;
@@ -114,12 +114,17 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
       const yearStart = parseInt(yearParts[0]);
       const yearEnd = parseInt(yearParts[1]) || yearStart + 1;
       
+      // Normalisasi mata pelajaran dari profil user
       const normalizedUserMapels = (user.mapelDiampu || []).map(m => m.trim().toLowerCase());
 
       const relevantPromes = promesData.filter(p => {
         const isMatchKelas = String(p.kelas).trim() === String(selectedKelas).trim();
         const mapelTrimmed = (p.mataPelajaran || '').trim().toLowerCase();
+        
+        // Guru Kelas dapat menyinkronkan semua mapel di kelasnya, 
+        // Guru Mapel hanya mapel yang diampu.
         const isMatchMapel = user.teacherType === 'kelas' ? true : normalizedUserMapels.includes(mapelTrimmed);
+        
         const hasSchedule = p.bulanPelaksanaan && p.bulanPelaksanaan.trim().length > 0;
         return isMatchKelas && isMatchMapel && hasSchedule;
       });
@@ -136,6 +141,7 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
       let createdCount = 0;
       
       for (const p of relevantPromes) {
+        // Urutkan tanggal pelaksanaan agar urutan pertemuan logis
         const datesArray = p.bulanPelaksanaan.split(',').filter(d => d.includes('|')).sort((a, b) => {
             const partA = a.split('|');
             const partB = b.split('|');
@@ -153,8 +159,10 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
           const monthName = parts[0].trim();
           const day = parseInt(parts[2].trim());
           const monthIndex = MONTH_MAP[monthName];
+          
           if (monthIndex === undefined || isNaN(day)) continue;
           
+          // Tentukan tahun berdasarkan semester (Juli-Des = Tahun Mulai, Jan-Jun = Tahun Selesai)
           const year = monthIndex >= 6 ? yearStart : yearEnd;
           const isoDate = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
@@ -163,6 +171,7 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
             ? `${baseMateri} (Pertemuan ${meetingIndex})` 
             : baseMateri;
 
+          // Pengecekan Duplikasi: Berdasarkan Tanggal, Mapel, dan Materi Spesifik
           const alreadyExists = jurnals.some(j => 
             j.tanggal === isoDate && 
             j.mataPelajaran.trim().toLowerCase() === p.mataPelajaran.trim().toLowerCase() && 
@@ -171,6 +180,7 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
           );
 
           if (!alreadyExists) {
+            // Cari referensi RPM untuk mendapatkan Praktik Pedagogis (Model Pembelajaran)
             const matchingRpm = rpmData.find(r => 
               r.kelas === selectedKelas && 
               r.mataPelajaran.trim().toLowerCase() === p.mataPelajaran.trim().toLowerCase() &&
@@ -251,6 +261,7 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
     }
 
     const baseMateri = item.materi.replace(/\(Pertemuan\s*\d+\)/gi, '').toLowerCase().trim();
+    
     const matchingRpm = rpmData.find(r => 
       r.kelas === item.kelas && 
       r.mataPelajaran.trim().toLowerCase() === item.mataPelajaran.trim().toLowerCase() &&
@@ -259,7 +270,35 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
 
     setIsLoadingAI(id);
     try {
-      const res = await generateJurnalNarasi(item, matchingRpm, user.apiKey);
+      const apiKey = user.apiKey || process.env.API_KEY;
+      const ai = new GoogleGenAI({ apiKey });
+      
+      let prompt = `Bantu susun narasi jurnal harian guru SD Kelas ${item.kelas}. 
+      Mapel: ${item.mataPelajaran}. Topik: ${item.materi}.`;
+
+      if (matchingRpm) {
+        prompt += `\nDATA REFERENSI RPM DITEMUKAN:
+        Model/Metode: ${matchingRpm.praktikPedagogis}
+        Langkah: ${matchingRpm.kegiatanAwal}, ${matchingRpm.kegiatanInti}, ${matchingRpm.kegiatanPenutup}
+        
+        INSTRUKSI KHUSUS: 
+        1. Rangkum data RPM di atas menjadi narasi jurnal yang padat dalam 1 paragraf untuk DETAIL_KEGIATAN.
+        2. Field PEDAGOGIK: HANYA sebutkan nama model/metode pembelajarannya saja secara singkat (contoh: '${matchingRpm.praktikPedagogis}').`;
+      } else {
+        prompt += `\nINSTRUKSI:
+        1. Buat narasi jurnal umum profesional untuk DETAIL_KEGIATAN.
+        2. Field PEDAGOGIK: HANYA sebutkan nama satu model/metode yang relevan (contoh: 'Problem Based Learning').`;
+      }
+
+      prompt += `\nOutput JSON key: detail_kegiatan, pedagogik (HANYA NAMA MODEL/METODE SAJA).`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: prompt,
+        config: { responseMimeType: "application/json" }
+      });
+      
+      const res = JSON.parse(response.text || '{}');
       if (res.detail_kegiatan) await updateJurnal(id, 'detailKegiatan', res.detail_kegiatan);
       if (res.pedagogik) await updateJurnal(id, 'praktikPedagogis', res.pedagogik);
       
@@ -463,8 +502,8 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
             </tbody>
           </table>
           <div className="mt-16 grid grid-cols-2 text-center text-xs font-black uppercase font-sans break-inside-avoid">
-             <div><p>Mengetahui,</p><p>Kepala Sekolah</p><div className="h-24"></div><p className="border-b border-black inline-block min-w-[180px]">{settings.principalName}</p><p className="mt-1 font-normal">NIP. {settings.principalNip}</p></div>
-             <div><p>Bilato, ........................</p><p>Guru Kelas / Mata Pelajaran</p><div className="h-24"></div><p className="border-b border-black inline-block min-w-[180px]">{user.name}</p><p className="mt-1 font-normal">NIP. {user.nip}</p></div>
+             <div><p>Mengetahui,</p><p>Kepala Sekolah</p><div className="h-24"></div><p className="border-b border-black inline-block min-w-[200px]">{settings.principalName}</p><p className="mt-1 font-normal">NIP. {settings.principalName}</p></div>
+             <div><p>Bilato, ........................</p><p>Guru Kelas / Mata Pelajaran</p><div className="h-24"></div><p className="border-b border-black inline-block min-w-[200px]">{user.name}</p><p className="mt-1 font-normal">NIP. {user.nip}</p></div>
           </div>
         </div>
       </div>

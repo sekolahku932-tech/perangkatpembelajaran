@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Fase, Kelas, ATPItem, AnalisisCP, CapaianPembelajaran, MATA_PELAJARAN, SchoolSettings, User, DIMENSI_PROFIL } from '../types';
+import { Fase, Kelas, ATPItem, AnalisisCP, CapaianPembelajaran, MATA_PELAJARAN, SchoolSettings, User } from '../types';
 import { Plus, Trash2, Sparkles, Loader2, Save, Eye, EyeOff, Search, CheckCircle2, X, AlertTriangle, RefreshCcw, Info, ClipboardCopy, Cloud, DownloadCloud, FileDown, Printer, Edit2, Wand2, Lock, ListTree, Copy, AlertCircle } from 'lucide-react';
 import { completeATPDetails } from '../services/geminiService';
 import { db, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from '../services/firebase';
@@ -18,12 +18,12 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
   const [isPrintMode, setIsPrintMode] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   
-  const [filterFase, setFilterFase] = useState<Fase>(Fase.A);
-  const [filterKelas, setFilterKelas] = useState<Kelas>('1');
+  const filterFase = Fase.C; // Locked
+  const filterKelas = '5'; // Locked
   const [filterMapel, setFilterMapel] = useState<string>(MATA_PELAJARAN[0]);
   
   const [settings, setSettings] = useState<SchoolSettings>({
-    schoolName: 'SD NEGERI 5 BILATO',
+    schoolName: 'SDN SONDANA',
     address: 'Kecamatan Bilato, Kabupaten Gorontalo',
     principalName: 'Nama Kepala Sekolah',
     principalNip: '-'
@@ -33,30 +33,19 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
   const printRef = useRef<HTMLDivElement>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (user.role === 'guru') {
-      if (user.kelas !== '-' && user.kelas !== 'Multikelas') {
-        setFilterKelas(user.kelas as Kelas);
-        updateFaseByKelas(user.kelas as Kelas);
-      }
-      if (user.mapelDiampu && user.mapelDiampu.length > 0) {
-        if (!user.mapelDiampu.includes(filterMapel)) {
-          setFilterMapel(user.mapelDiampu[0]);
-        }
-      }
+  // FIX: If guru has no assigned mapel, show all by default
+  const availableMapel = useMemo(() => {
+    if (user.role === 'admin' || !user.mapelDiampu || user.mapelDiampu.length === 0) {
+      return MATA_PELAJARAN;
     }
+    return user.mapelDiampu;
   }, [user]);
 
-  const updateFaseByKelas = (kls: Kelas) => {
-    if (['1', '2'].includes(kls)) setFilterFase(Fase.A);
-    else if (['3', '4'].includes(kls)) setFilterFase(Fase.B);
-    else if (['5', '6'].includes(kls)) setFilterFase(Fase.C);
-  };
-
-  const handleKelasChange = (kls: Kelas) => {
-    setFilterKelas(kls);
-    updateFaseByKelas(kls);
-  };
+  useEffect(() => {
+    if (!availableMapel.includes(filterMapel)) {
+      setFilterMapel(availableMapel[0]);
+    }
+  }, [availableMapel]);
 
   useEffect(() => {
     setLoading(true);
@@ -152,23 +141,16 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
     try {
       const suggestions = await completeATPDetails(item.tujuanPembelajaran, item.materi, item.kelas, user.apiKey);
       if (suggestions) {
-        // Pembersihan tambahan dimensi profil untuk memastikan hanya 3 jika AI memberikan lebih
-        let dimensions = suggestions.dimensiOfProfil || '';
-        const parts = dimensions.split(',').map((p: string) => p.trim()).filter((p: string) => p.length > 0);
-        if (parts.length > 3) {
-            dimensions = parts.slice(0, 3).join(', ');
-        }
-
         await updateDoc(doc(db, "atp", id), {
           alurTujuanPembelajaran: suggestions.alurTujuan,
           alokasiWaktu: suggestions.alokasiWaktu,
-          dimensiProfilLulusan: dimensions,
+          dimensiProfilLulusan: suggestions.dimensiOfProfil,
           asesmenAwal: suggestions.asesmenAwal,
           asesmenProses: suggestions.asesmenProses,
           asesmenAkhir: suggestions.asesmenAkhir,
           sumberBelajar: suggestions.sumberBelajar
         });
-        setMessage({ text: 'Detail ATP berhasil dilengkapi (Maks 3 Dimensi).', type: 'success' });
+        setMessage({ text: 'Detail ATP berhasil dilengkapi oleh AI.', type: 'success' });
       }
     } catch (err) {
       setMessage({ text: 'Gagal menghubungi AI. Periksa kuota API Key.', type: 'error' });
@@ -195,7 +177,7 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
       printWindow.document.write(`
         <html>
           <head>
-            <title>Cetak ATP - SDN 5 Bilato</title>
+            <title>Cetak ATP - SDN SONDANA</title>
             <script src="https://cdn.tailwindcss.com"></script>
             <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
             <style>
@@ -263,9 +245,6 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
     link.download = `ATP_${filterMapel.replace(/ /g, '_')}_KLS${filterKelas}.doc`;
     link.click();
   };
-
-  const isClassLocked = user.role === 'guru' && user.teacherType === 'kelas';
-  const availableMapel = user.role === 'admin' ? MATA_PELAJARAN : user.mapelDiampu;
 
   if (isPrintMode) {
     return (
@@ -366,7 +345,7 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
 
       {deleteConfirmId && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[250] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[32px] shadow-2xl w-full max-sm overflow-hidden animate-in zoom-in-95">
+          <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95">
             <div className="p-8 text-center">
               <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6 mx-auto"><AlertTriangle size={32} /></div>
               <h3 className="text-xl font-black text-slate-900 uppercase mb-2">Hapus ATP</h3>
@@ -403,18 +382,23 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50 p-6 rounded-[24px] border border-slate-100">
           <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Fase {isClassLocked && <Lock size={10} className="text-amber-500" />}</label>
-            <select className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none disabled:bg-slate-100 disabled:text-slate-400" value={filterFase} disabled={isClassLocked} onChange={(e) => setFilterFase(e.target.value as Fase)}>
-              {Object.values(Fase).map(f => <option key={f} value={f}>{f}</option>)}
-            </select>
+            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Fase (Terkunci) <Lock size={10} className="text-amber-500" /></label>
+            <div className="w-full bg-slate-100 border border-slate-200 rounded-xl p-3 text-sm font-black text-slate-500 uppercase">
+              FASE C
+            </div>
           </div>
           <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Pilih Kelas</label>
-            <select className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none disabled:bg-slate-100 disabled:text-slate-400" value={filterKelas} disabled={isClassLocked} onChange={(e) => handleKelasChange(e.target.value as Kelas)}>
-              {['1','2','3','4','5','6'].map(k => <option key={k} value={k}>Kelas {k}</option>)}
+            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Kelas (Terkunci) <Lock size={10} className="text-amber-500" /></label>
+            <div className="w-full bg-slate-100 border border-slate-200 rounded-xl p-3 text-sm font-black text-slate-500 uppercase">
+              KELAS 5
+            </div>
+          </div>
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Mapel</label>
+            <select className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none" value={filterMapel} onChange={(e) => setFilterMapel(e.target.value)}>
+              {availableMapel.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           </div>
-          <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Mapel</label><select className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none" value={filterMapel} onChange={(e) => setFilterMapel(e.target.value)}>{availableMapel.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
         </div>
       </div>
 
@@ -423,7 +407,7 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
           <table className="w-full text-left border-collapse min-w-[2000px]">
             <thead>
               <tr className="bg-slate-900 text-white text-[10px] font-black h-12 uppercase tracking-widest">
-                <th className="px-6 py-4 w-16 text-center">No</th>
+                <th className="px-6 py-4 w-16 text-center border-r border-white/5">No</th>
                 <th className="px-6 py-4 w-72">Elemen & CP</th>
                 <th className="px-6 py-4 w-64">Tujuan Pembelajaran (TP)</th>
                 <th className="px-6 py-4 w-80">Alur Tujuan (ATP)</th>
@@ -437,7 +421,7 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
               {loading ? (
                 <tr><td colSpan={8} className="py-20 text-center"><Loader2 className="animate-spin inline-block text-blue-600" /></td></tr>
               ) : filteredAtp.length === 0 ? (
-                <tr><td colSpan={8} className="px-6 py-24 text-center text-slate-400 italic font-bold uppercase text-xs">Belum ada data. Klik tombol Ambil dari Analisis.</td></tr>
+                <tr><td colSpan={8} className="px-6 py-24 text-center text-slate-300 font-bold uppercase text-xs tracking-widest">Belum ada data. Klik tombol Ambil dari Analisis.</td></tr>
               ) : (
                 filteredAtp.map((item, idx) => (
                   <tr key={item.id} className="align-top group hover:bg-slate-50 transition-colors">
@@ -486,7 +470,7 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
         <div className="p-6 bg-slate-50 border-t border-slate-100 flex items-start gap-3">
            <Info size={16} className="text-blue-600 shrink-0 mt-0.5"/>
            <p className="text-[10px] text-slate-400 font-medium italic leading-relaxed">
-             *Gunakan tombol <b>Wand AI</b> untuk melengkapi Alur Tujuan, Dimensi Profil Lulusan, dan Rencana Asesmen secara otomatis berdasarkan Tujuan Pembelajaran yang ada. Dimensi profil kini dibatasi maksimal 3 pilihan saja.
+             *Gunakan tombol <b>Wand AI</b> untuk melengkapi Alur Tujuan, Dimensi Profil Lulusan, dan Rencana Asesmen secara otomatis berdasarkan Tujuan Pembelajaran yang ada.
            </p>
         </div>
       </div>

@@ -28,14 +28,13 @@ const LoginPage: React.FC = () => {
     }
 
     // Pemetaan ke format email Firebase (sama dengan UserManager)
-    let email = cleanUsername.includes('@') ? cleanUsername : `${cleanUsername}@sdn5bilato.sch.id`;
+    let email = cleanUsername.includes('@') ? cleanUsername : `${cleanUsername}@sdnsondana.sch.id`;
     
-    // Logika Password: Jika kurang dari 6 karakter, lakukan padding hingga minimal 6 karakter
-    // Hal ini karena Firebase membutuhkan minimal 6 karakter untuk password.
+    // Logika Password: Jika kurang dari 6 karakter, otomatis digandakan (karena Firebase minimal 6)
+    // Ini harus sama persis dengan logika saat mendaftarkan Guru di UserManager
     let pwd = cleanPassword;
     if (pwd.length < 6) {
-      // Mengulang password asli sampai minimal 6 karakter (misal: "12" -> "121212")
-      pwd = cleanPassword.repeat(Math.ceil(6 / cleanPassword.length));
+      pwd = pwd + pwd;
     }
 
     try {
@@ -44,11 +43,11 @@ const LoginPage: React.FC = () => {
     } catch (err: any) {
       console.error("Login Error:", err.code, err.message);
       if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        setError('Akses ditolak: Username atau Password salah. Hubungi Admin jika Anda belum terdaftar.');
+        setError('Username atau Password salah. Pastikan data sudah didaftarkan oleh Admin.');
       } else if (err.code === 'auth/network-request-failed') {
-        setError('Koneksi internet bermasalah. Periksa jaringan Anda.');
+        setError('Gagal terhubung ke internet. Periksa koneksi Anda.');
       } else {
-        setError('Sistem Sibuk: ' + (err.message || 'Coba lagi nanti.'));
+        setError('Kesalahan sistem Cloud: ' + err.message);
       }
     } finally {
       setLoading(false);
@@ -62,7 +61,7 @@ const LoginPage: React.FC = () => {
           <div className="inline-flex items-center justify-center p-4 bg-blue-600 rounded-2xl text-white shadow-xl mb-4 animate-in zoom-in duration-500">
             <School size={48} />
           </div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">SD NEGERI 5 BILATO</h1>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">SDN SONDANA</h1>
           <p className="text-slate-500 font-medium uppercase text-xs tracking-[0.2em] mt-1">Sistem Cloud Perangkat Pembelajaran</p>
         </div>
 

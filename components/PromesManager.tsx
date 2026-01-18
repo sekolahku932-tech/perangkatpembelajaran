@@ -21,8 +21,8 @@ const PromesManager: React.FC<PromesManagerProps> = ({ user }) => {
   const [jadwal, setJadwal] = useState<JadwalItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [filterFase, setFilterFase] = useState<Fase>(Fase.A);
-  const [filterKelas, setFilterKelas] = useState<Kelas>('1');
+  const filterFase = Fase.C; // Locked
+  const filterKelas = '5'; // Locked
   const [filterSemester, setFilterSemester] = useState<'1' | '2'>('1');
   const [filterMapel, setFilterMapel] = useState<string>(MATA_PELAJARAN[0]);
   const [isPrintMode, setIsPrintMode] = useState(false);
@@ -33,36 +33,25 @@ const PromesManager: React.FC<PromesManagerProps> = ({ user }) => {
   const printRef = useRef<HTMLDivElement>(null);
 
   const [settings, setSettings] = useState<SchoolSettings>({
-    schoolName: 'SD NEGERI 5 BILATO',
+    schoolName: 'SDN SONDANA',
     address: 'Kecamatan Bilato, Kabupaten Gorontalo',
     principalName: 'Nama Kepala Sekolah',
     principalNip: '-'
   });
 
-  useEffect(() => {
-    if (user.role === 'guru') {
-      if (user.kelas !== '-' && user.kelas !== 'Multikelas') {
-        setFilterKelas(user.kelas as Kelas);
-        updateFaseByKelas(user.kelas as Kelas);
-      }
-      if (user.mapelDiampu && user.mapelDiampu.length > 0) {
-        if (!user.mapelDiampu.includes(filterMapel)) {
-          setFilterMapel(user.mapelDiampu[0]);
-        }
-      }
+  // FIX: If guru has no assigned mapel, show all by default
+  const availableMapel = useMemo(() => {
+    if (user.role === 'admin' || !user.mapelDiampu || user.mapelDiampu.length === 0) {
+      return MATA_PELAJARAN;
     }
+    return user.mapelDiampu;
   }, [user]);
 
-  const updateFaseByKelas = (kls: Kelas) => {
-    if (['1', '2'].includes(kls)) setFilterFase(Fase.A);
-    else if (['3', '4'].includes(kls)) setFilterFase(Fase.B);
-    else if (['5', '6'].includes(kls)) setFilterFase(Fase.C);
-  };
-
-  const handleKelasChange = (kls: Kelas) => {
-    setFilterKelas(kls);
-    updateFaseByKelas(kls);
-  };
+  useEffect(() => {
+    if (!availableMapel.includes(filterMapel)) {
+      setFilterMapel(availableMapel[0]);
+    }
+  }, [availableMapel]);
 
   useEffect(() => {
     setLoading(true);
@@ -119,7 +108,6 @@ const PromesManager: React.FC<PromesManagerProps> = ({ user }) => {
   }, [jadwal, filterKelas, filterMapel]);
 
   const teachingDays = Object.keys(dailyScheduleInfo);
-  const availableMapel = user.role === 'admin' ? MATA_PELAJARAN : user.mapelDiampu;
 
   const BULAN_LIST = filterSemester === '1' 
     ? ['Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember']
@@ -132,7 +120,7 @@ const PromesManager: React.FC<PromesManagerProps> = ({ user }) => {
       printWindow.document.write(`
         <html>
           <head>
-            <title>Cetak PROMES - SDN 5 Bilato</title>
+            <title>Cetak PROMES - SDN SONDANA</title>
             <script src="https://cdn.tailwindcss.com"></script>
             <style>
               body { font-family: 'Times New Roman', serif; background: white; padding: 10px; font-size: 8pt; }
@@ -166,6 +154,7 @@ const PromesManager: React.FC<PromesManagerProps> = ({ user }) => {
     link.href = url;
     link.download = `PROMES_${filterMapel}_Kls${filterKelas}.doc`;
     link.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleSequentialSync = async () => {
@@ -284,8 +273,6 @@ const PromesManager: React.FC<PromesManagerProps> = ({ user }) => {
     );
   };
 
-  const isClassLocked = user.role === 'guru' && user.teacherType === 'kelas';
-
   if (isPrintMode) {
     return (
       <div className="bg-white p-8 md:p-12 min-h-screen text-slate-900 font-serif">
@@ -347,7 +334,7 @@ const PromesManager: React.FC<PromesManagerProps> = ({ user }) => {
               ))}
             </tbody>
           </table>
-          <div className="mt-16 flex justify-between items-start text-[10px] px-12 font-sans uppercase font-black tracking-tighter">
+          <div className="mt-16 flex justify-between items-start text-[10px] px-12 font-sans uppercase font-black tracking-tighter break-inside-avoid">
             <div className="text-center w-72"><p>Mengetahui,</p> <p>Kepala Sekolah</p> <div className="h-24"></div> <p className="border-b border-black inline-block min-w-[200px]">{settings.principalName}</p> <p className="no-underline mt-1 font-normal">NIP. {settings.principalNip}</p></div>
             <div className="text-center w-72"><p>Bilato, {new Date().toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p> <p>Guru Kelas/Mapel</p> <div className="h-24"></div> <p className="border-b border-black inline-block min-w-[200px]">{user?.name || '[Nama Guru]'}</p> <p className="no-underline mt-1 font-normal">NIP. {user?.nip || '...................'}</p></div>
           </div>
@@ -409,7 +396,6 @@ const PromesManager: React.FC<PromesManagerProps> = ({ user }) => {
         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
           <div className="flex flex-wrap gap-2">
             <button onClick={() => handleAddRow('TP')} className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 hover:bg-indigo-700 transition-all"><Plus size={16} /> TP BARU</button>
-            {/* FIX: Fixed truncated line and corrected type argument */}
             <button onClick={() => handleAddRow('ASESMEN')} className="bg-amber-500 text-white px-5 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 hover:bg-amber-600 transition-all"><AlertCircle size={16} /> ASESMEN BARU</button>
             <button onClick={importFromProta} disabled={loading} className="bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-xs font-black flex items-center gap-2 hover:bg-emerald-700 shadow-xl transition-all disabled:opacity-50">{loading ? <Loader2 size={16} className="animate-spin" /> : <Copy size={16} />} AMBIL DARI PROTA</button>
           </div>
@@ -420,30 +406,12 @@ const PromesManager: React.FC<PromesManagerProps> = ({ user }) => {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-8 p-6 bg-slate-50 rounded-[24px] border border-slate-100">
           <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest flex items-center gap-1">
-              Fase {isClassLocked && <Lock size={10} className="text-amber-500" />}
-            </label>
-            <select 
-              className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none disabled:bg-slate-100" 
-              value={filterFase} 
-              disabled={isClassLocked}
-              onChange={(e) => setFilterFase(e.target.value as Fase)}
-            >
-              {Object.values(Fase).map(f => <option key={f} value={f}>{f}</option>)}
-            </select>
+            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest flex items-center gap-1">Fase (Terkunci) <Lock size={10} className="text-amber-500" /></label>
+            <div className="w-full bg-slate-100 border border-slate-200 rounded-xl p-3 text-sm font-black text-slate-500">FASE C</div>
           </div>
           <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest flex items-center gap-1">
-              Kelas {isClassLocked && <Lock size={10} className="text-amber-500" />}
-            </label>
-            <select 
-              className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none disabled:bg-slate-100" 
-              value={filterKelas} 
-              disabled={isClassLocked}
-              onChange={(e) => handleKelasChange(e.target.value as Kelas)}
-            >
-              {['1','2','3','4','5','6'].map(k => <option key={k} value={k}>Kelas {k}</option>)}
-            </select>
+            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest flex items-center gap-1">Kelas (Terkunci) <Lock size={10} className="text-amber-500" /></label>
+            <div className="w-full bg-slate-100 border border-slate-200 rounded-xl p-3 text-sm font-black text-slate-500">KELAS 5</div>
           </div>
           <div>
             <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Semester</label>
