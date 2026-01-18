@@ -3,11 +3,11 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { UploadedFile } from "../types";
 
 /**
- * SDN 5 Bilato - Engine V3.3 (Flash 3 Stable)
- * PENTING: Kami menggunakan gemini-3-flash-preview secara eksplisit.
- * Jika muncul error "GEMINI-3-PRO", berarti ada masalah caching di sisi hosting/browser.
+ * SDN 5 Bilato - Engine V3.4 (Ultra Flash Stable)
+ * Kami beralih ke gemini-2.0-flash karena Google membatasi 
+ * akses model Gemini 3 (Pro/Flash) pada beberapa region akun gratis.
  */
-const MODEL_NAME = 'gemini-3-flash-preview';
+const MODEL_NAME = 'gemini-2.0-flash';
 
 const cleanJsonString = (str: string): string => {
   if (!str) return '';
@@ -15,28 +15,28 @@ const cleanJsonString = (str: string): string => {
 };
 
 /**
- * DEBUG VERIFICATION:
- * Log ini akan muncul di Console Browser (F12) setiap kali AI dipanggil.
- * Ini untuk membuktikan bahwa aplikasi TIDAK memanggil model Pro.
+ * MONITOR REAL-TIME:
+ * Jika Anda melihat error Pro, artinya file ini belum ter-update di hosting.
  */
 const logRequestInfo = (customKey?: string) => {
   const maskedKey = customKey ? `${customKey.substring(0, 6)}...${customKey.substring(customKey.length - 4)}` : 'MISSING';
-  console.info(`[AI CALL] Model: ${MODEL_NAME} | Key: ${maskedKey}`);
+  console.warn(`[AI ENGINE V3.4] MENGGUNAKAN MESIN: ${MODEL_NAME}`);
+  console.warn(`[AI ENGINE V3.4] IDENTITAS KUNCI: ${maskedKey}`);
 };
 
 const formatAIError = (error: any): string => {
   const errorStr = typeof error === 'string' ? error : (error?.message || JSON.stringify(error));
-  console.error("DETAILED AI ERROR:", error);
+  console.error("AI ERROR REPORT:", error);
 
   if (errorStr.includes('429') || errorStr.includes('QUOTA')) {
-    return "KUOTA HABIS: Batas gratis API Key Anda sudah tercapai untuk menit ini. Mohon tunggu sebentar.";
+    return "BATAS PENGGUNAAN: Kuota gratis Anda habis untuk menit ini. Mohon tunggu 1-2 menit sebelum mencoba lagi.";
   }
   
-  if (errorStr.includes('Limit: 0') || errorStr.includes('PRO')) {
-    return "CACHING ERROR: Sistem mendeteksi permintaan model Pro. Harap tekan Ctrl+F5 untuk membersihkan cache browser dan beralih ke Mesin Flash V3.3.";
+  if (errorStr.includes('Limit: 0') || errorStr.includes('PRO') || errorStr.includes('gemini-3')) {
+    return "SISTEM TERKUNCI (CACHE): Browser Anda masih memanggil mesin lama (PRO). Harap tekan CTRL + F5 pada keyboard Anda untuk beralih ke ULTRA FLASH V3.4.";
   }
 
-  return `GANGGUAN KUNCI: Harap pastikan API Key di Profil sudah benar. (Error: ${errorStr.substring(0, 40)}...)`;
+  return `GANGGUAN KUNCI: API Key tidak valid atau salah ketik. (Error: ${errorStr.substring(0, 40)}...)`;
 };
 
 const getApiKey = (customKey?: string) => {

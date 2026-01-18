@@ -5,7 +5,7 @@ import {
   User as UserIcon, Settings, Users, CalendarDays, FileText, 
   CalendarRange, Rocket, Menu, ChevronRight, Loader2, AlertTriangle,
   BarChart3, LayoutDashboard, Code, BookText, PenTool, ClipboardCheck,
-  ClipboardList, Lock, Key, ShieldAlert, Info, X, Save, Eye, EyeOff, ShieldCheck, Cpu
+  ClipboardList, Lock, Key, ShieldAlert, Info, X, Save, Eye, EyeOff, ShieldCheck, Cpu, Zap
 } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import CPManager from './components/CPManager';
@@ -100,7 +100,7 @@ const App: React.FC = () => {
       }, { merge: true });
       
       setShowProfileModal(false);
-      alert('UPDATE BERHASIL: Mesin Flash 3 diaktifkan dengan kuota pribadi Anda.');
+      alert('SINKRONISASI BERHASIL: Mesin Ultra Flash V3.4 telah aktif.');
     } catch (e) {
       alert('Gagal: ' + (e as Error).message);
     } finally {
@@ -208,7 +208,7 @@ const App: React.FC = () => {
               <div className="p-2.5 bg-blue-600 rounded-xl text-white shadow-lg"><School size={24} /></div>
               <div>
                 <h1 className="text-sm font-black text-slate-900 uppercase leading-none">SDN 5 BILATO</h1>
-                <p className="text-[8px] text-blue-600 font-black uppercase mt-1 tracking-widest bg-blue-50 px-1.5 py-0.5 rounded">V3.3 - FLASH 3 ENGINE</p>
+                <p className="text-[8px] text-indigo-600 font-black uppercase mt-1 tracking-widest bg-indigo-50 px-1.5 py-0.5 rounded">V3.4 - ULTRA FLASH</p>
               </div>
             </div>
           </div>
@@ -260,13 +260,13 @@ const App: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-3">
-             <div className={`px-4 py-1.5 rounded-full border flex items-center gap-2 transition-all ${hasNoApiKey ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-emerald-50 border-emerald-100 text-emerald-600'}`}>
+             <div className={`px-4 py-1.5 rounded-full border flex items-center gap-2 transition-all ${hasNoApiKey ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-indigo-50 border-indigo-100 text-indigo-600'}`}>
                 {hasNoApiKey ? <ShieldAlert size={14}/> : <ShieldCheck size={14}/>}
-                <span className="text-[9px] font-black uppercase tracking-widest">{hasNoApiKey ? 'Akses AI Terkunci' : 'Flash 3 Engine Aktif'}</span>
+                <span className="text-[9px] font-black uppercase tracking-widest">{hasNoApiKey ? 'Akses AI Terkunci' : 'Engine 2.0 Aktif'}</span>
              </div>
-             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-900 text-white rounded-full">
-                <Cpu size={12} className="text-cyan-400 animate-pulse" />
-                <span className="text-[8px] font-black uppercase tracking-tighter">SDN 5 BILATO V3.3</span>
+             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-900 text-white rounded-full border border-indigo-500/30">
+                <Zap size={12} className="text-indigo-400 animate-pulse" />
+                <span className="text-[8px] font-black uppercase tracking-tighter">ULTRA FLASH 2.0</span>
              </div>
           </div>
         </header>
@@ -276,21 +276,21 @@ const App: React.FC = () => {
             {isCurrentMenuRestricted ? (
               <div className="flex flex-col items-center justify-center py-32 text-center animate-in fade-in zoom-in-95 duration-500">
                  <div className="w-24 h-24 bg-rose-100 text-rose-600 rounded-[40px] flex items-center justify-center mb-8 shadow-xl shadow-rose-200/50"><ShieldAlert size={48}/></div>
-                 <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-4">Update API Key Diperlukan</h2>
+                 <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-4">Cache Browser Harus Dibersihkan</h2>
                  <p className="text-slate-500 font-medium max-w-md leading-relaxed mb-8">
-                    Sistem SDN 5 Bilato telah ditingkatkan ke <b>Engine V3.3 (Flash 3 Stable)</b>. Harap masukkan API Key baru Anda di Profil agar bisa menggunakan modul ini dan menghindari error "Limit 0" model Pro.
+                    Sistem SDN 5 Bilato telah ditingkatkan ke <b>Engine V3.4 (Ultra Flash)</b>. Jika Anda masih melihat error Pro, harap tekan <b>Ctrl + F5</b> di keyboard Anda sekarang.
                  </p>
                  <div className="bg-white border border-slate-200 p-6 rounded-3xl shadow-sm mb-8 text-left max-w-md w-full">
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Info size={14} className="text-blue-500"/> Instruksi Penting:</h4>
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Info size={14} className="text-blue-500"/> Instruksi Pembersihan:</h4>
                     <ul className="space-y-3 text-[11px] font-bold text-slate-600">
-                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">1</span><span>Buka Google AI Studio, buat kunci baru, lalu tempel di menu Profil (Nama Anda).</span></li>
-                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">2</span><span>Aplikasi ini HANYA menggunakan model <b>Flash 3</b> yang gratis dan berkecepatan tinggi.</span></li>
-                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">3</span><span>Jika masih muncul error model Pro, tekan <b>Ctrl + F5</b> di keyboard Anda.</span></li>
+                       <li className="flex gap-3"><span className="w-5 h-5 bg-indigo-50 text-indigo-600 rounded flex items-center justify-center shrink-0">1</span><span>Mesin baru menggunakan model <b>Gemini 2.0 Flash</b> untuk menghindari limit 0.</span></li>
+                       <li className="flex gap-3"><span className="w-5 h-5 bg-indigo-50 text-indigo-600 rounded flex items-center justify-center shrink-0">2</span><span>Tekan <b>Ctrl + F5</b> berkali-kali sampai tulisan di kiri atas menunjukkan <b>V3.4</b>.</span></li>
+                       <li className="flex gap-3"><span className="w-5 h-5 bg-indigo-50 text-indigo-600 rounded flex items-center justify-center shrink-0">3</span><span>Update kembali API Key Anda di menu Profil jika diperlukan.</span></li>
                     </ul>
                  </div>
                  <div className="flex flex-col sm:flex-row gap-3">
                     <button onClick={() => setActiveMenu('DASHBOARD')} className="px-8 py-4 rounded-2xl text-xs font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 transition-all">KEMBALI</button>
-                    <button onClick={() => setShowProfileModal(true)} className="bg-blue-600 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl flex items-center gap-2"><Key size={16}/> MASUKKAN KUNCI SAYA</button>
+                    <button onClick={() => setShowProfileModal(true)} className="bg-indigo-600 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl flex items-center gap-2"><Key size={16}/> UPDATE KUNCI SAYA</button>
                  </div>
               </div>
             ) : (
