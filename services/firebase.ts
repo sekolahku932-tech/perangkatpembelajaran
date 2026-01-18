@@ -20,48 +20,37 @@ if (!firebase.apps.length) {
 export const auth = firebase.auth();
 export const db = firebase.firestore();
 
-// Modular Shims
-export const onAuthStateChanged = (authInstance: any, callback: any) => authInstance.onAuthStateChanged(callback);
-export const signOut = (authInstance: any) => authInstance.signOut();
-export const signInWithEmailAndPassword = (authInstance: any, email: any, pass: any) => authInstance.signInWithEmailAndPassword(email, pass);
-export const createUserWithEmailAndPassword = (authInstance: any, email: any, pass: any) => authInstance.createUserWithEmailAndPassword(email, pass);
+// Ultra-Stable Shims
+export const onAuthStateChanged = (a: any, c: any) => a.onAuthStateChanged(c);
+export const signOut = (a: any) => a.signOut();
+export const signInWithEmailAndPassword = (a: any, e: string, p: string) => a.signInWithEmailAndPassword(e, p);
+export const createUserWithEmailAndPassword = (a: any, e: string, p: string) => a.createUserWithEmailAndPassword(e, p);
 
-export const collection = (dbInstance: any, path: string) => dbInstance.collection(path);
-export const doc = (dbOrColl: any, pathOrId: string, id?: string) => {
-  if (id) return dbOrColl.collection(pathOrId).doc(id);
-  return typeof dbOrColl.doc === 'function' ? dbOrColl.doc(pathOrId) : db.doc(pathOrId);
-};
+export const collection = (d: any, p: string) => d.collection(p);
+export const doc = (d: any, p: string, id?: string) => id ? d.collection(p).doc(id) : d.doc(p);
 
-export const onSnapshot = (ref: any, onNext: any, onError?: any) => {
-  return ref.onSnapshot((snap: any) => {
-    if (snap.docs) {
-      onNext({
-        docs: snap.docs.map((d: any) => ({
-          id: d.id,
-          exists: () => true,
-          data: () => d.data()
-        })),
-        size: snap.size,
-        empty: snap.empty
+export const onSnapshot = (ref: any, callback: any) => {
+  return ref.onSnapshot((s: any) => {
+    if (s.docs) {
+      callback({
+        docs: s.docs.map((d: any) => ({ id: d.id, exists: () => true, data: () => d.data() })),
+        size: s.size,
+        empty: s.empty
       });
     } else {
-      onNext({
-        id: snap.id,
-        exists: () => snap.exists,
-        data: () => snap.data()
-      });
+      callback({ id: s.id, exists: s.exists, data: () => s.data() });
     }
-  }, onError);
+  });
 };
 
-export const addDoc = (ref: any, data: any) => ref.add(data);
-export const updateDoc = (ref: any, data: any) => ref.update(data);
-export const deleteDoc = (ref: any) => ref.delete();
-export const setDoc = (ref: any, data: any, options?: any) => options ? ref.set(data, options) : ref.set(data);
-export const getDocs = (ref: any) => ref.get();
-export const query = (ref: any, ...constraints: any[]) => {
-  let q = ref;
-  constraints.forEach(c => { if (c?.type === 'where') q = q.where(c.field, c.op, c.value); });
+export const addDoc = (r: any, d: any) => r.add(d);
+export const updateDoc = (r: any, d: any) => r.update(d);
+export const deleteDoc = (r: any) => r.delete();
+export const setDoc = (r: any, d: any, o?: any) => o ? r.set(d, o) : r.set(d);
+export const getDocs = (r: any) => r.get();
+export const query = (r: any, ...c: any[]) => {
+  let q = r;
+  c.forEach(x => { if (x?.t === 'w') q = q.where(x.f, x.o, x.v); });
   return q;
 };
-export const where = (field: string, op: any, value: any) => ({ type: 'where', field, op, value });
+export const where = (f: string, o: any, v: any) => ({ t: 'w', f, o, v });

@@ -14,18 +14,12 @@ const cleanJsonString = (str: string): string => {
   return str.replace(/```json/g, '').replace(/```/g, '').trim();
 };
 
-const logRequestInfo = (customKey?: string) => {
-  const maskedKey = customKey ? `${customKey.substring(0, 6)}...${customKey.substring(customKey.length - 4)}` : 'MISSING';
-  console.info(`[V3.5 ACTIVE] Menggunakan Jalur: ${MODEL_NAME}`);
-  console.info(`[V3.5 ACTIVE] Kunci Terdeteksi: ${maskedKey}`);
-};
-
 const formatAIError = (error: any): string => {
   const errorStr = JSON.stringify(error).toUpperCase();
   console.error("DEBUG ERROR V3.5:", error);
 
   if (errorStr.includes('429') || errorStr.includes('QUOTA')) {
-    return "KUOTA HARIAN HABIS: Batas gratis API Key Anda sudah tercapai. Silakan coba lagi besok atau gunakan API Key baru.";
+    return "KUOTA HARIAN HABIS: Batas gratis API Key sudah tercapai. Silakan coba lagi besok.";
   }
   
   if (errorStr.includes('PRO') || errorStr.includes('GEMINI-3') || errorStr.includes('LIMIT: 0')) {
@@ -35,18 +29,10 @@ const formatAIError = (error: any): string => {
   return `GANGGUAN TEKNIS: (Error: ${errorStr.substring(0, 50)}...)`;
 };
 
-const getApiKey = (customKey?: string) => {
-  const key = customKey?.trim();
-  if (key && key.length > 20) {
-    logRequestInfo(key);
-    return key;
-  }
-  throw new Error('API_KEY_REQUIRED');
-};
-
-export const startAIChat = async (systemInstruction: string, apiKey?: string) => {
+// Fix: Always use process.env.API_KEY directly as required by the coding guidelines
+export const startAIChat = async (systemInstruction: string) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     return ai.chats.create({
       model: MODEL_NAME,
       config: { systemInstruction, temperature: 0.7 },
@@ -54,9 +40,10 @@ export const startAIChat = async (systemInstruction: string, apiKey?: string) =>
   } catch (e) { throw new Error(formatAIError(e)); }
 };
 
-export const analyzeDocuments = async (files: UploadedFile[], prompt: string, apiKey?: string) => {
+// Fix: Always use process.env.API_KEY directly
+export const analyzeDocuments = async (files: UploadedFile[], prompt: string) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const fileParts = files.map(file => ({
       inlineData: { data: file.base64.split(',')[1], mimeType: file.type }
     }));
@@ -68,9 +55,10 @@ export const analyzeDocuments = async (files: UploadedFile[], prompt: string, ap
   } catch (e) { throw new Error(formatAIError(e)); }
 };
 
-export const analyzeCPToTP = async (cpContent: string, elemen: string, fase: string, kelas: string, apiKey?: string) => {
+// Fix: Always use process.env.API_KEY directly
+export const analyzeCPToTP = async (cpContent: string, elemen: string, fase: string, kelas: string) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
       contents: `Analisis CP ini menjadi TP SD Kelas ${kelas}: "${cpContent}"`,
@@ -94,9 +82,10 @@ export const analyzeCPToTP = async (cpContent: string, elemen: string, fase: str
   } catch (e) { throw new Error(formatAIError(e)); }
 };
 
-export const completeATPDetails = async (tp: string, materi: string, kelas: string, apiKey?: string) => {
+// Fix: Always use process.env.API_KEY directly
+export const completeATPDetails = async (tp: string, materi: string, kelas: string) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
       contents: `Lengkapi detail ATP SD Kelas ${kelas} materi ${materi} untuk TP: ${tp}`,
@@ -120,9 +109,10 @@ export const completeATPDetails = async (tp: string, materi: string, kelas: stri
   } catch (e) { throw new Error(formatAIError(e)); }
 };
 
-export const recommendPedagogy = async (tp: string, alurAtp: string, materi: string, kelas: string, apiKey?: string) => {
+// Fix: Always use process.env.API_KEY directly
+export const recommendPedagogy = async (tp: string, alurAtp: string, materi: string, kelas: string) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
       contents: `Rekomendasi model pembelajaran untuk TP: ${tp}`,
@@ -141,9 +131,10 @@ export const recommendPedagogy = async (tp: string, alurAtp: string, materi: str
   } catch (e) { throw new Error(formatAIError(e)); }
 };
 
-export const generateRPMContent = async (tp: string, materi: string, kelas: string, praktikPedagogis: string, alokasiWaktu: string, jumlahPertemuan: number = 1, apiKey?: string) => {
+// Fix: Always use process.env.API_KEY directly
+export const generateRPMContent = async (tp: string, materi: string, kelas: string, praktikPedagogis: string, alokasiWaktu: string, jumlahPertemuan: number = 1) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
       contents: `Susun RPM SD Kelas ${kelas} materi ${materi} untuk TP: ${tp}. Model: ${praktikPedagogis}`,
@@ -166,9 +157,10 @@ export const generateRPMContent = async (tp: string, materi: string, kelas: stri
   } catch (e) { throw new Error(formatAIError(e)); }
 };
 
-export const generateAssessmentDetails = async (tp: string, materi: string, kelas: string, apiKey?: string) => {
+// Fix: Always use process.env.API_KEY directly
+export const generateAssessmentDetails = async (tp: string, materi: string, kelas: string) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
       contents: `Buat instrumen asesmen untuk TP: ${tp}`,
@@ -194,9 +186,10 @@ export const generateAssessmentDetails = async (tp: string, materi: string, kela
   } catch (e) { throw new Error(formatAIError(e)); }
 };
 
-export const generateLKPDContent = async (rpm: any, apiKey?: string) => {
+// Fix: Always use process.env.API_KEY directly
+export const generateLKPDContent = async (rpm: any) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
       contents: `Buat LKPD dari TP: ${rpm.tujuanPembelajaran}`,
@@ -218,9 +211,10 @@ export const generateLKPDContent = async (rpm: any, apiKey?: string) => {
   } catch (e) { throw new Error(formatAIError(e)); }
 };
 
-export const generateIndikatorSoal = async (item: any, apiKey?: string) => {
+// Fix: Always use process.env.API_KEY directly
+export const generateIndikatorSoal = async (item: any) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
       contents: `Buat 1 indikator soal untuk TP: ${item.tujuanPembelajaran}`
@@ -229,9 +223,10 @@ export const generateIndikatorSoal = async (item: any, apiKey?: string) => {
   } catch (e) { throw new Error(formatAIError(e)); }
 };
 
-export const generateButirSoal = async (item: any, apiKey?: string) => {
+// Fix: Always use process.env.API_KEY directly
+export const generateButirSoal = async (item: any) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
       contents: `Buat 1 soal SD Kelas ${item.kelas} Indikator: ${item.indikatorSoal}`,
@@ -251,9 +246,10 @@ export const generateButirSoal = async (item: any, apiKey?: string) => {
   } catch (e) { throw new Error(formatAIError(e)); }
 };
 
-export const generateJurnalNarasi = async (item: any, matchingRpm: any, apiKey?: string) => {
+// Fix: Always use process.env.API_KEY directly
+export const generateJurnalNarasi = async (item: any, matchingRpm: any) => {
   try {
-    const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
       contents: `Buat narasi jurnal harian materi ${item.materi}`,

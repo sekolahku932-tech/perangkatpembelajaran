@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   Sparkles as SparklesIcon, X as XIcon, Send as SendIcon, 
@@ -55,10 +54,9 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user }) => {
 
     try {
       if (!chatInstance.current) {
-        // Injeksi API Key User
+        // Fix: Removed redundant apiKey argument to comply with process.env.API_KEY guideline
         chatInstance.current = await startAIChat(
-          `Anda asisten AI SDN 5 Bilato. Guru: ${user.name}.`,
-          user.apiKey
+          `Anda asisten AI SDN 5 Bilato. Guru: ${user.name}.`
         );
       }
       const result = await chatInstance.current.sendMessageStream({ message: userMessage });

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Kelas, JurnalItem, MATA_PELAJARAN, SchoolSettings, AcademicYear, User, PromesItem, RPMItem } from '../types';
 import { 
@@ -259,7 +258,7 @@ const JurnalManager: React.FC<JurnalManagerProps> = ({ user }) => {
 
     setIsLoadingAI(id);
     try {
-      const res = await generateJurnalNarasi(item, matchingRpm, user.apiKey);
+      const res = await generateJurnalNarasi(item, matchingRpm);
       if (res.detail_kegiatan) await updateJurnal(id, 'detailKegiatan', res.detail_kegiatan);
       if (res.pedagogik) await updateJurnal(id, 'praktikPedagogis', res.pedagogik);
       
