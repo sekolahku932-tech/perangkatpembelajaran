@@ -29,7 +29,8 @@ export const createUserWithEmailAndPassword = (a: any, e: string, p: string) => 
 export const collection = (d: any, p: string) => d.collection(p);
 export const doc = (d: any, p: string, id?: string) => id ? d.collection(p).doc(id) : d.doc(p);
 
-export const onSnapshot = (ref: any, callback: any) => {
+// Fix: Support error callback and normalize exists() as a function for both Document and Query snapshots
+export const onSnapshot = (ref: any, callback: any, errorCallback?: any) => {
   return ref.onSnapshot((s: any) => {
     if (s.docs) {
       callback({
@@ -38,9 +39,9 @@ export const onSnapshot = (ref: any, callback: any) => {
         empty: s.empty
       });
     } else {
-      callback({ id: s.id, exists: s.exists, data: () => s.data() });
+      callback({ id: s.id, exists: () => s.exists, data: () => s.data() });
     }
-  });
+  }, errorCallback);
 };
 
 export const addDoc = (r: any, d: any) => r.add(d);

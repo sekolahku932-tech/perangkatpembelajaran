@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   BookOpen, GraduationCap, School, ListTree, LogOut, 
@@ -50,7 +49,16 @@ const App: React.FC = () => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser: any) => {
       if (firebaseUser) {
+        // Gunakan timeout untuk mencegah spinner abadi jika Firestore gagal merespon
+        const timeoutId = setTimeout(() => {
+          if (loading) {
+            console.error("Sinkronisasi database timeout.");
+            setLoading(false);
+          }
+        }, 8000);
+
         const unsubUser = onSnapshot(doc(db, "users", firebaseUser.uid), (snap: any) => {
+          clearTimeout(timeoutId);
           if (snap.exists()) {
             const userData = { id: firebaseUser.uid, ...snap.data() } as User;
             setUser(userData);
@@ -62,8 +70,15 @@ const App: React.FC = () => {
             setUser({ id: firebaseUser.uid, role: 'guru', teacherType: 'kelas', name: 'Guru Baru', nip: '-', kelas: '-', username: firebaseUser.email?.split('@')[0] || '', mapelDiampu: [] });
           }
           setLoading(false);
+        }, (error) => {
+          clearTimeout(timeoutId);
+          console.error("Firestore error:", error);
+          setLoading(false);
         });
-        return () => unsubUser();
+        return () => {
+          clearTimeout(timeoutId);
+          unsubUser();
+        }
       } else {
         setUser(null);
         setLoading(false);
@@ -112,7 +127,15 @@ const App: React.FC = () => {
   ];
 
   if (loading) {
-    return <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center"><Loader2 className="animate-spin text-blue-600 mb-4" size={48} /><p className="text-xs font-black text-slate-400 uppercase">SYNCHRONIZING V3.7 FINAL...</p></div>;
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
+        <Loader2 className="animate-spin text-blue-600 mb-4" size={48} />
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
+          SINKRONISASI CLOUD V3.7...<br/>
+          <span className="font-medium lowercase opacity-50 mt-1 block">Tunggu sebentar sedang memuat data</span>
+        </p>
+      </div>
+    );
   }
 
   if (!user) return <LoginPage />;
