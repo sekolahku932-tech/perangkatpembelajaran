@@ -66,8 +66,8 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ user }) => {
     setIsAnalyzing(true);
 
     try {
-      // Fix: Removed redundant apiKey argument to comply with process.env.API_KEY guideline
-      const response = await analyzeDocuments(files, currentInput);
+      // Injeksi API Key User
+      const response = await analyzeDocuments(files, currentInput, user.apiKey);
       const aiMsg: ChatMessage = { role: 'model', content: response, timestamp: new Date() };
       setChatHistory(prev => [...prev, aiMsg]);
     } catch (error: any) {

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Fase, Kelas, Siswa, AsesmenNilai, AsesmenInstrumen, ATPItem, MATA_PELAJARAN, SchoolSettings, User, KisiKisiItem } from '../types';
 import { 
@@ -149,8 +150,7 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
     }
     setAiLoadingMap(prev => ({ ...prev, [`ind-${item.id}`]: true }));
     try {
-      // Fix: Removed apiKey argument to comply with process.env.API_KEY guideline
-      const indikator = await generateIndikatorSoal(item);
+      const indikator = await generateIndikatorSoal(item, user.apiKey);
       if (indikator) {
           await updateKisiKisi(item.id, 'indikatorSoal', indikator);
       }
@@ -169,8 +169,7 @@ const AsesmenManager: React.FC<AsesmenManagerProps> = ({ type, user }) => {
     }
     setAiLoadingMap(prev => ({ ...prev, [`soal-${item.id}`]: true }));
     try {
-      // Fix: Removed apiKey argument to comply with process.env.API_KEY guideline
-      const result = await generateButirSoal(item);
+      const result = await generateButirSoal(item, user.apiKey);
       if (result) {
         await updateDoc(doc(db, "kisikisi", item.id), { 
           stimulus: result.stimulus || "",

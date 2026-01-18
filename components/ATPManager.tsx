@@ -150,9 +150,9 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
     if (!item || !item.tujuanPembelajaran) return;
     setIsProcessingId(id);
     try {
-      // Fix: Removed apiKey from call; exclusively managed in process.env.API_KEY
-      const suggestions = await completeATPDetails(item.tujuanPembelajaran, item.materi, item.kelas);
+      const suggestions = await completeATPDetails(item.tujuanPembelajaran, item.materi, item.kelas, user.apiKey);
       if (suggestions) {
+        // Pembersihan tambahan dimensi profil untuk memastikan hanya 3 jika AI memberikan lebih
         let dimensions = suggestions.dimensiOfProfil || '';
         const parts = dimensions.split(',').map((p: string) => p.trim()).filter((p: string) => p.length > 0);
         if (parts.length > 3) {
@@ -168,10 +168,10 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
           asesmenAkhir: suggestions.asesmenAkhir,
           sumberBelajar: suggestions.sumberBelajar
         });
-        setMessage({ text: 'Detail ATP berhasil dilengkapi.', type: 'success' });
+        setMessage({ text: 'Detail ATP berhasil dilengkapi (Maks 3 Dimensi).', type: 'success' });
       }
     } catch (err) {
-      setMessage({ text: 'Gagal menghubungi AI.', type: 'error' });
+      setMessage({ text: 'Gagal menghubungi AI. Periksa kuota API Key.', type: 'error' });
     } finally { setIsProcessingId(null); }
   };
 
@@ -386,7 +386,7 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
               <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-lg"><ListTree size={24} /></div>
               <div>
                 <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight leading-none">Alur Tujuan Pembelajaran (ATP)</h2>
-                <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Database Cloud Aktif</p>
+                <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Status: {user.apiKey ? 'Personal Key' : 'System Key'}</p>
               </div>
            </div>
            <div className="flex flex-wrap gap-2">
@@ -486,7 +486,7 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
         <div className="p-6 bg-slate-50 border-t border-slate-100 flex items-start gap-3">
            <Info size={16} className="text-blue-600 shrink-0 mt-0.5"/>
            <p className="text-[10px] text-slate-400 font-medium italic leading-relaxed">
-             *Gunakan tombol <b>Wand AI</b> untuk melengkapi Alur Tujuan, Dimensi Profil Lulusan, dan Rencana Asesmen secara otomatis.
+             *Gunakan tombol <b>Wand AI</b> untuk melengkapi Alur Tujuan, Dimensi Profil Lulusan, dan Rencana Asesmen secara otomatis berdasarkan Tujuan Pembelajaran yang ada. Dimensi profil kini dibatasi maksimal 3 pilihan saja.
            </p>
         </div>
       </div>

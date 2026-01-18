@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Fase, Kelas, LKPDItem, RPMItem, MATA_PELAJARAN, SchoolSettings, User } from '../types';
 import { Plus, Trash2, Rocket, Sparkles, Loader2, CheckCircle2, Printer, Cloud, FileText, Split, AlertTriangle, FileDown, Wand2, PencilLine, Lock, Brain, Zap, RefreshCw, PenTool, Search, AlertCircle, X, ArrowRight } from 'lucide-react';
@@ -134,8 +135,7 @@ const LKPDManager: React.FC<LKPDManagerProps> = ({ user }) => {
 
     setIsLoadingAI(true);
     try {
-      // Fix: Removed apiKey argument to comply with process.env.API_KEY guideline
-      const result = await generateLKPDContent(rpm);
+      const result = await generateLKPDContent(rpm, user.apiKey);
       if (result) {
         await updateDoc(doc(db, "lkpd", id), { ...result });
         setMessage({ text: 'Konten LKPD Sinkron dengan Langkah RPM!', type: 'success' });

@@ -61,13 +61,15 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
     });
 
     const cpsCollection = collection(db, "cps");
-    // Fix: Removed third argument (error callback) from onSnapshot as it is not supported by the shim
     const unsubscribe = onSnapshot(cpsCollection, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as CapaianPembelajaran[];
       setCps(data);
+      setLoading(false);
+    }, (error) => {
+      console.error("Firestore snapshot error:", error);
       setLoading(false);
     });
 
@@ -246,7 +248,7 @@ const CPManager: React.FC<CPManagerProps> = ({ user }) => {
     <div className="space-y-6 animate-in fade-in duration-500">
       {deleteConfirm && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[32px] shadow-2xl w-full max-sm overflow-hidden animate-in zoom-in-95">
+          <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95">
             <div className="p-8 text-center">
               <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6 mx-auto">
                 <AlertTriangle size={32} />

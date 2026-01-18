@@ -18,6 +18,7 @@ const UserManager: React.FC<UserManagerProps> = ({ user }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showKey, setShowKey] = useState(false);
   
   const [formData, setFormData] = useState<Partial<User>>({
     username: '',
@@ -27,7 +28,8 @@ const UserManager: React.FC<UserManagerProps> = ({ user }) => {
     name: '',
     nip: '',
     kelas: '',
-    mapelDiampu: []
+    mapelDiampu: [],
+    apiKey: ''
   });
   
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -59,6 +61,7 @@ const UserManager: React.FC<UserManagerProps> = ({ user }) => {
       return;
     }
 
+    // Validasi lokal: Jangan biarkan simpan jika username sudah ada di daftar aktif
     if (!isEditing && users.some(u => u.username === cleanUsername)) {
       alert(`Username @${cleanUsername} sudah digunakan oleh guru lain dalam daftar.`);
       return;
@@ -80,13 +83,14 @@ const UserManager: React.FC<UserManagerProps> = ({ user }) => {
         name: cleanName,
         nip: formData.nip?.trim() || '-',
         kelas: formData.kelas?.trim() || '-',
-        mapelDiampu: formData.mapelDiampu || []
+        mapelDiampu: formData.mapelDiampu || [],
+        apiKey: formData.apiKey?.trim() || ''
       };
 
       if (isEditing) {
         await setDoc(doc(db, "users", isEditing), userPayload, { merge: true });
         setIsEditing(null);
-        alert('Data profil berhasil diperbarui!');
+        alert('Data profil dan API Key berhasil diperbarui!');
       } else {
         try {
           const userCredential = await createUserWithEmailAndPassword(auth, userEmail, userPwd);
@@ -95,7 +99,7 @@ const UserManager: React.FC<UserManagerProps> = ({ user }) => {
           alert(`User @${cleanUsername} berhasil didaftarkan!`);
         } catch (authError: any) {
           if (authError.code === 'auth/email-already-in-use') {
-            alert(`Gagal Mendaftar: Username @${cleanUsername} sudah pernah digunakan sebelumnya di sistem Authentication.\n\nMeskipun profil guru sudah dihapus dari daftar aplikasi, akun login "hantu" masih tersimpan di server Firebase.`);
+            alert(`Gagal Mendaftar: Username @${cleanUsername} sudah pernah digunakan sebelumnya di sistem Authentication.\n\nMeskipun profil guru sudah dihapus dari daftar aplikasi, akun login "hantu" masih tersimpan di server Firebase.\n\nSOLUSI: Harap gunakan username lain atau hubungi developer untuk membersihkan akun di Firebase Console.`);
           } else {
             throw authError;
           }
@@ -119,9 +123,11 @@ const UserManager: React.FC<UserManagerProps> = ({ user }) => {
       name: '',
       nip: '',
       kelas: '',
-      mapelDiampu: []
+      mapelDiampu: [],
+      apiKey: ''
     });
     setIsEditing(null);
+    setShowKey(false);
   };
 
   const startEdit = (u: User) => {
@@ -130,7 +136,8 @@ const UserManager: React.FC<UserManagerProps> = ({ user }) => {
       ...u,
       password: 'PASSWORD_HIDDEN',
       teacherType: u.teacherType || 'kelas',
-      mapelDiampu: u.mapelDiampu || []
+      mapelDiampu: u.mapelDiampu || [],
+      apiKey: u.apiKey || ''
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -149,7 +156,7 @@ const UserManager: React.FC<UserManagerProps> = ({ user }) => {
     try {
       await deleteDoc(doc(db, "users", deleteConfirmId));
       setDeleteConfirmId(null);
-      alert('Profil berhasil dihapus dari database sekolah.');
+      alert('Profil berhasil dihapus dari database sekolah. Catatan: Akun login (Auth) tidak terhapus otomatis demi keamanan.');
     } catch (e) {
       alert('Gagal menghapus data.');
     }
@@ -234,6 +241,30 @@ const UserManager: React.FC<UserManagerProps> = ({ user }) => {
                 <input className="w-full border border-slate-200 rounded-xl p-3 text-sm font-semibold outline-none uppercase focus:ring-2 focus:ring-blue-500 transition-all" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Contoh: ARIYANTO RAHMAN, S.PD" />
               </div>
 
+              <div className="p-4 bg-indigo-50/50 border border-indigo-100 rounded-2xl space-y-3">
+                <label className="flex items-center gap-2 text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1">
+                  <Key size={14}/> Gemini API Key (Kustom)
+                </label>
+                <div className="relative">
+                  <input 
+                    type={showKey ? "text" : "password"}
+                    className="w-full border border-indigo-200 rounded-xl py-3 pl-4 pr-12 text-xs font-mono font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                    placeholder="AIzaSyB..."
+                    value={formData.apiKey}
+                    onChange={e => setFormData({...formData, apiKey: e.target.value})}
+                  />
+                  <button 
+                    onClick={() => setShowKey(!showKey)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-400 hover:text-indigo-600 transition-colors"
+                  >
+                    {showKey ? <EyeOff size={18}/> : <Eye size={18}/>}
+                  </button>
+                </div>
+                <p className="text-[9px] text-indigo-400 italic px-1 leading-relaxed">
+                   *Wajib diisi agar guru bisa mengakses modul kurikulum dan asisten AI.
+                </p>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5 ml-1">NIP</label>
@@ -293,6 +324,7 @@ const UserManager: React.FC<UserManagerProps> = ({ user }) => {
                   <tr className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
                     <th className="px-6 py-4">Profil & NIP</th>
                     <th className="px-6 py-4">Tipe & Kelas</th>
+                    <th className="px-6 py-4">Status API Key</th>
                     <th className="px-6 py-4 text-right">Aksi</th>
                   </tr>
                 </thead>
@@ -308,6 +340,17 @@ const UserManager: React.FC<UserManagerProps> = ({ user }) => {
                           {u.role} | Kelas {u.kelas}
                         </span>
                       </td>
+                      <td className="px-6 py-4">
+                        {u.apiKey && u.apiKey.length > 5 ? (
+                          <div className="flex items-center gap-1.5 text-[9px] font-black text-emerald-600 uppercase">
+                            <CheckCircle2 size={12}/> Konfigurasi Aktif
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-[9px] font-black text-rose-500 uppercase">
+                            <ShieldAlert size={12}/> Akses Terkunci
+                          </div>
+                        )}
+                      </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button onClick={() => startEdit(u)} className="p-2 text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100" title="Edit Profil"><Edit2 size={16} /></button>
@@ -319,6 +362,24 @@ const UserManager: React.FC<UserManagerProps> = ({ user }) => {
                 </tbody>
               </table>
             </div>
+          </div>
+          
+          <div className="bg-amber-50 border-2 border-amber-200 p-6 rounded-[32px] flex items-start gap-5 shadow-sm">
+             <div className="p-3 bg-amber-100 rounded-2xl text-amber-600">
+               <ShieldAlert size={24}/>
+             </div>
+             <div className="space-y-2">
+                <h4 className="text-xs font-black text-amber-900 uppercase tracking-tight">Peringatan Penghapusan Username</h4>
+                <p className="text-[11px] text-amber-800 leading-relaxed font-medium">
+                  Menghapus guru di aplikasi ini hanya menghapus <b>Profil Database</b>. Akun login permanen (Firebase Auth) tetap tersimpan demi keamanan privasi server.
+                </p>
+                <div className="bg-white/60 p-4 rounded-2xl border border-amber-200/50">
+                  <p className="text-[10px] font-black text-amber-900 mb-1">Cara Menggunakan Kembali Username yang Sama:</p>
+                  <p className="text-[10px] text-amber-800 italic">
+                    Buka <b>Firebase Console > Authentication</b>, cari email guru tersebut (misal: guru.nama@sdn5bilato.sch.id), hapus barisnya secara manual, baru kemudian daftarkan kembali di sini.
+                  </p>
+                </div>
+             </div>
           </div>
         </div>
       </div>

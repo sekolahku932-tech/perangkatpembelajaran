@@ -93,6 +93,7 @@ const AnalisisManager: React.FC<AnalisisManagerProps> = ({ user }) => {
       .sort((a, b) => (a.kode || '').localeCompare(b.kode || '', undefined, { numeric: true, sensitivity: 'base' }));
   }, [cps, filterFase, filterMapel]);
 
+  // Map CP IDs to their descriptions for faster lookup in table
   const cpLookup = useMemo(() => {
     const map: Record<string, string> = {};
     cps.forEach(c => map[c.id] = c.deskripsi);
@@ -102,8 +103,7 @@ const AnalisisManager: React.FC<AnalisisManagerProps> = ({ user }) => {
   const handleAnalyze = async (cp: CapaianPembelajaran) => {
     setIsAnalyzing(true);
     try {
-      // Fix: API Key managed exclusively via process.env.API_KEY
-      const results = await analyzeCPToTP(cp.deskripsi, cp.elemen, cp.fase, filterKelas);
+      const results = await analyzeCPToTP(cp.deskripsi, cp.elemen, cp.fase, filterKelas, user.apiKey);
       if (results && Array.isArray(results)) {
         let lastOrder = filteredAnalisis.length > 0 ? Math.max(...filteredAnalisis.map(a => a.indexOrder || 0)) : 0;
         for (const res of results) {
@@ -122,7 +122,7 @@ const AnalisisManager: React.FC<AnalisisManagerProps> = ({ user }) => {
       }
     } catch (error) {
       console.error(error);
-      alert("Gagal analisis AI.");
+      alert("Gagal analisis AI. Cek kuota API Key Anda.");
     } finally {
       setIsAnalyzing(false);
     }
@@ -274,7 +274,7 @@ const AnalisisManager: React.FC<AnalisisManagerProps> = ({ user }) => {
             <div className="p-3 bg-emerald-600 text-white rounded-2xl shadow-lg"><BrainCircuit size={24} /></div>
             <div>
               <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight leading-none">ANALISIS CAPAIAN PEMBELAJARAN</h2>
-              <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">AI Database Sinkron</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">{user.apiKey ? 'Menggunakan Kunci Kustom' : 'Menggunakan Kunci Sekolah'}</p>
             </div>
           </div>
           <div className="flex gap-2">
