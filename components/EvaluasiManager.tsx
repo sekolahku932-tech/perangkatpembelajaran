@@ -16,7 +16,7 @@ const EvaluasiManager: React.FC<EvaluasiManagerProps> = ({ user }) => {
   const [activeTab, setActiveTab] = useState<'SISWA' | 'NILAI'>('NILAI');
   const [kelas, setKelas] = useState<Kelas>('1');
   const [semester, setSemester] = useState<'1' | '2'>('1');
-  const [mapel, setMapel] = useState<string>(MATA_PELAJARAN[0]);
+  const [mapel, setMapel] = useState<string>(MATA_PELAJARAN[1]);
   
   const [students, setStudents] = useState<Siswa[]>([]);
   const [tps, setTps] = useState<ATPItem[]>([]);
@@ -38,25 +38,17 @@ const EvaluasiManager: React.FC<EvaluasiManagerProps> = ({ user }) => {
   const printRef = useRef<HTMLDivElement>(null);
 
   const isClassLocked = user.role === 'guru' && user.teacherType === 'kelas';
-  
-  // FIX: If guru has no assigned mapel, show all by default
-  const availableMapel = useMemo(() => {
-    if (user.role === 'admin' || !user.mapelDiampu || user.mapelDiampu.length === 0) {
-      return MATA_PELAJARAN;
-    }
-    return user.mapelDiampu;
-  }, [user]);
-
-  useEffect(() => {
-    if (!availableMapel.includes(mapel)) {
-      setMapel(availableMapel[0] || MATA_PELAJARAN[0]);
-    }
-  }, [availableMapel]);
+  const availableMapel = user.role === 'admin' ? MATA_PELAJARAN : (user.mapelDiampu || []);
 
   useEffect(() => {
     if (user.role === 'guru') {
       if (user.kelas !== '-' && user.kelas !== 'Multikelas') {
         setKelas(user.kelas as Kelas);
+      }
+      if (user.mapelDiampu && user.mapelDiampu.length > 0) {
+        if (!user.mapelDiampu.includes(mapel)) {
+          setMapel(user.mapelDiampu[0]);
+        }
       }
     }
   }, [user]);
@@ -93,11 +85,7 @@ const EvaluasiManager: React.FC<EvaluasiManagerProps> = ({ user }) => {
   }, [students, kelas]);
 
   const filteredTps = useMemo(() => {
-    const currentMapelNormalized = mapel.trim().toLowerCase();
-    return tps.filter(t => 
-      t.kelas === kelas && 
-      (t.mataPelajaran || '').trim().toLowerCase() === currentMapelNormalized
-    );
+    return tps.filter(t => t.kelas === kelas && t.mataPelajaran === mapel);
   }, [tps, kelas, mapel]);
 
   const handleAddStudent = async () => {

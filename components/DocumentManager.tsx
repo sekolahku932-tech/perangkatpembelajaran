@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { UploadedFile, ChatMessage, User } from '../types';
 import { 
@@ -32,7 +31,8 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ user }) => {
     const selectedFiles = e.target.files;
     if (!selectedFiles) return;
 
-    Array.from(selectedFiles).forEach((file) => {
+    // Fix: Explicitly cast the file list to an array of File objects to resolve unknown property errors
+    Array.from(selectedFiles as FileList).forEach((file: File) => {
       const reader = new FileReader();
       reader.onload = (event) => {
         const base64 = event.target?.result as string;
@@ -45,6 +45,7 @@ const DocumentManager: React.FC<DocumentManagerProps> = ({ user }) => {
         };
         setFiles((prev) => [...prev, newFile]);
       };
+      // Fix: Ensure the input to readAsDataURL is a valid Blob/File
       reader.readAsDataURL(file);
     });
     

@@ -14,8 +14,8 @@ const ProtaManager: React.FC<ProtaManagerProps> = ({ user }) => {
   const [cps, setCps] = useState<CapaianPembelajaran[]>([]);
   const [loading, setLoading] = useState(true);
   
-  const filterFase = Fase.C; // Locked
-  const filterKelas = '5'; // Locked
+  const [filterFase, setFilterFase] = useState<Fase>(Fase.A);
+  const [filterKelas, setFilterKelas] = useState<Kelas>('1');
   const [filterMapel, setFilterMapel] = useState<string>(MATA_PELAJARAN[0]);
   
   const [isPrintMode, setIsPrintMode] = useState(false);
@@ -25,7 +25,7 @@ const ProtaManager: React.FC<ProtaManagerProps> = ({ user }) => {
   const printRef = useRef<HTMLDivElement>(null);
 
   const [settings, setSettings] = useState<SchoolSettings>({
-    schoolName: 'SDN SONDANA',
+    schoolName: 'SD NEGERI 5 BILATO',
     address: 'Kecamatan Bilato, Kabupaten Gorontalo',
     principalName: 'Nama Kepala Sekolah',
     principalNip: '-'
@@ -33,19 +33,30 @@ const ProtaManager: React.FC<ProtaManagerProps> = ({ user }) => {
 
   const [activeYear, setActiveYear] = useState('..../....');
 
-  // FIX: If guru has no assigned mapel, show all by default
-  const availableMapel = useMemo(() => {
-    if (user.role === 'admin' || !user.mapelDiampu || user.mapelDiampu.length === 0) {
-      return MATA_PELAJARAN;
+  useEffect(() => {
+    if (user.role === 'guru') {
+      if (user.kelas !== '-' && user.kelas !== 'Multikelas') {
+        setFilterKelas(user.kelas as Kelas);
+        updateFaseByKelas(user.kelas as Kelas);
+      }
+      if (user.mapelDiampu && user.mapelDiampu.length > 0) {
+        if (!user.mapelDiampu.includes(filterMapel)) {
+          setFilterMapel(user.mapelDiampu[0]);
+        }
+      }
     }
-    return user.mapelDiampu;
   }, [user]);
 
-  useEffect(() => {
-    if (!availableMapel.includes(filterMapel)) {
-      setFilterMapel(availableMapel[0]);
-    }
-  }, [availableMapel]);
+  const updateFaseByKelas = (kls: Kelas) => {
+    if (['1', '2'].includes(kls)) setFilterFase(Fase.A);
+    else if (['3', '4'].includes(kls)) setFilterFase(Fase.B);
+    else if (['5', '6'].includes(kls)) setFilterFase(Fase.C);
+  };
+
+  const handleKelasChange = (kls: Kelas) => {
+    setFilterKelas(kls);
+    updateFaseByKelas(kls);
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -85,6 +96,8 @@ const ProtaManager: React.FC<ProtaManagerProps> = ({ user }) => {
     return rawFiltered.sort((a, b) => (a.indexOrder || 0) - (b.indexOrder || 0));
   }, [protaData, filterFase, filterKelas, filterMapel]);
 
+  const availableMapel = user.role === 'admin' ? MATA_PELAJARAN : user.mapelDiampu;
+
   const totalJP = filteredProta.reduce((acc, curr) => {
     if (!curr.jp) return acc;
     const val = parseFloat(curr.jp.replace(',', '.')) || 0;
@@ -98,7 +111,7 @@ const ProtaManager: React.FC<ProtaManagerProps> = ({ user }) => {
       printWindow.document.write(`
         <html>
           <head>
-            <title>Cetak PROTA - SDN SONDANA</title>
+            <title>Cetak PROTA - SDN 5 Bilato</title>
             <script src="https://cdn.tailwindcss.com"></script>
             <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
             <style>
@@ -130,7 +143,6 @@ const ProtaManager: React.FC<ProtaManagerProps> = ({ user }) => {
     link.href = url;
     link.download = `PROTA_${filterMapel}_Kls${filterKelas}.doc`;
     link.click();
-    URL.revokeObjectURL(url);
   };
 
   const handleAddRow = async () => {
@@ -195,6 +207,8 @@ const ProtaManager: React.FC<ProtaManagerProps> = ({ user }) => {
     finally { setLoading(false); }
   };
 
+  const isClassLocked = user.role === 'guru' && user.teacherType === 'kelas';
+
   if (isPrintMode) {
     return (
       <div className="bg-white p-8 md:p-12 min-h-screen text-slate-900 font-serif">
@@ -249,7 +263,7 @@ const ProtaManager: React.FC<ProtaManagerProps> = ({ user }) => {
               </tr>
             </tbody>
           </table>
-          <div className="mt-16 flex justify-between items-start text-[10px] px-12 font-sans uppercase font-black tracking-tighter break-inside-avoid">
+          <div className="mt-16 flex justify-between items-start text-[10px] px-12 font-sans uppercase font-black tracking-tighter">
             <div className="text-center w-72"><p>Mengetahui,</p> <p>Kepala Sekolah</p> <div className="h-24"></div> <p className="border-b border-black inline-block min-w-[200px]">{settings.principalName}</p> <p className="no-underline mt-1 font-normal">NIP. {settings.principalNip}</p></div>
             <div className="text-center w-72"><p>Bilato, {new Date().toLocaleDateString('id-ID', {day: 'numeric', month: 'long', year: 'numeric'})}</p> <p>Guru Kelas/Mapel</p> <div className="h-24"></div> <p className="border-b border-black inline-block min-w-[200px]">{user?.name || '[Nama Guru]'}</p> <p className="no-underline mt-1 font-normal">NIP. {user?.nip || '...................'}</p></div>
           </div>
@@ -289,16 +303,30 @@ const ProtaManager: React.FC<ProtaManagerProps> = ({ user }) => {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8 p-6 bg-slate-50 rounded-[24px] border border-slate-100">
           <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest flex items-center gap-1">Fase (Terkunci) <Lock size={10} className="text-amber-500" /></label>
-            <div className="w-full bg-slate-100 border border-slate-200 rounded-xl p-3 text-sm font-black text-slate-500 uppercase">
-              FASE C
-            </div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest flex items-center gap-1">
+              Fase {isClassLocked && <Lock size={10} className="text-amber-500" />}
+            </label>
+            <select 
+              className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none disabled:bg-slate-100 disabled:text-slate-400" 
+              value={filterFase} 
+              disabled={isClassLocked}
+              onChange={(e) => setFilterFase(e.target.value as Fase)}
+            >
+              {Object.values(Fase).map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
           </div>
           <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest flex items-center gap-1">Kelas (Terkunci) <Lock size={10} className="text-amber-500" /></label>
-            <div className="w-full bg-slate-100 border border-slate-200 rounded-xl p-3 text-sm font-black text-slate-500 uppercase">
-              KELAS 5
-            </div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest flex items-center gap-1">
+              Pilih Kelas {isClassLocked && <Lock size={10} className="text-amber-500" />}
+            </label>
+            <select 
+              className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none disabled:bg-slate-100 disabled:text-slate-400" 
+              value={filterKelas} 
+              disabled={isClassLocked}
+              onChange={(e) => handleKelasChange(e.target.value as Kelas)}
+            >
+              {['1','2','3','4','5','6'].map(k => <option key={k} value={k}>Kelas {k}</option>)}
+            </select>
           </div>
           <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1 tracking-widest">Mapel</label><select className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none" value={filterMapel} onChange={(e) => setFilterMapel(e.target.value)}>{availableMapel.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
         </div>

@@ -1,7 +1,7 @@
 
 // @google/genai is not used directly here, but it's part of the global project context.
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { HariEfektif, SchoolSettings, AcademicYear, MATA_PELAJARAN, MATA_PELAJARAN_JADWAL, EventKalender, JadwalItem, Kelas, User } from '../types';
+import { HariEfektif, SchoolSettings, AcademicYear, MATA_PELAJARAN, SEMUA_AKTIVITAS, EventKalender, JadwalItem, Kelas, User } from '../types';
 import { 
   CalendarDays, Save, Printer, Eye, EyeOff, Info, Calculator, FileText, 
   ChevronLeft, ChevronRight, Plus, Trash2, Calendar as CalendarIcon, 
@@ -13,7 +13,7 @@ import { db, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, setDoc }
 const BULAN_SEM_1 = ['Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const BULAN_SEM_2 = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni'];
 const HARI = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat'];
-const JAM_MAKS = 15; // Updated from 12 to 15
+const JAM_MAKS = 12;
 
 const MONTH_MAP: Record<string, number> = {
   'Januari': 0, 'Februari': 1, 'Maret': 2, 'April': 3, 'Mei': 4, 'Juni': 5,
@@ -30,7 +30,7 @@ const HariEfektifManager: React.FC<HariEfektifManagerProps> = ({ user }) => {
   const [jpPerMinggu, setJpPerMinggu] = useState<number>(0);
   
   const [mapel, setMapel] = useState<string>(MATA_PELAJARAN[0]);
-  const selectedKelas: Kelas = '5'; // LOCKED TO 5
+  const [selectedKelas, setSelectedKelas] = useState<Kelas>('1');
   
   const [isPrintMode, setIsPrintMode] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -48,14 +48,19 @@ const HariEfektifManager: React.FC<HariEfektifManagerProps> = ({ user }) => {
   const printRef = useRef<HTMLDivElement>(null);
 
   const [settings, setSettings] = useState<SchoolSettings>({
-    schoolName: 'SDN SONDANA',
+    schoolName: 'SD NEGERI 5 BILATO',
     address: 'Kecamatan Bilato, Kabupaten Gorontalo',
     principalName: 'Nama Kepala Sekolah',
     principalNip: '-'
   });
 
+  const isClassLocked = user.role === 'guru' && (user.teacherType === 'kelas' || (!user.teacherType && user.kelas !== '-' && user.kelas !== 'Multikelas'));
+
   useEffect(() => {
     if (user.role === 'guru') {
+      if (user.kelas !== '-' && user.kelas !== 'Multikelas') {
+        setSelectedKelas(user.kelas as Kelas);
+      }
       if (user.mapelDiampu && user.mapelDiampu.length > 0) {
         if (!user.mapelDiampu.includes(mapel)) {
           setMapel(user.mapelDiampu[0]);
@@ -99,7 +104,8 @@ const HariEfektifManager: React.FC<HariEfektifManagerProps> = ({ user }) => {
     const bulanList = semester === 1 ? BULAN_SEM_1 : BULAN_SEM_2;
     return bulanList.map(bulan => {
       const found = data.find(d => d.kelas === selectedKelas && d.semester === semester && d.bulan === bulan);
-      return found || { kelas: selectedKelas, semester, bulan, jumlahMinggu: 4, mingguTidakEfektif: 0, keterangan: '' } as HariEfektif;
+      // Fix: Added missing 'id' property and matched property name 'mingguTidakEfektif' after typo fix in types.ts
+      return found || { id: '', kelas: selectedKelas, semester, bulan, jumlahMinggu: 4, mingguTidakEfektif: 0, keterangan: '' } as HariEfektif;
     });
   }, [data, selectedKelas, semester]);
 
@@ -117,6 +123,7 @@ const HariEfektifManager: React.FC<HariEfektifManagerProps> = ({ user }) => {
         await addDoc(collection(db, "hari_efektif"), {
           kelas: selectedKelas, semester, bulan, 
           jumlahMinggu: field === 'jumlahMinggu' ? value : 4,
+          // Fix: Property name comparison now valid after typo fix in types.ts
           mingguTidakEfektif: field === 'mingguTidakEfektif' ? value : 0,
           keterangan: field === 'keterangan' ? value : ''
         });
@@ -224,7 +231,7 @@ const HariEfektifManager: React.FC<HariEfektifManagerProps> = ({ user }) => {
       printWindow.document.write(`
         <html>
           <head>
-            <title>Cetak Perangkat - SDN SONDANA</title>
+            <title>Cetak Perangkat - SDN 5 Bilato</title>
             <script src="https://cdn.tailwindcss.com"></script>
             <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
             <style>
@@ -251,7 +258,7 @@ const HariEfektifManager: React.FC<HariEfektifManagerProps> = ({ user }) => {
       <div className="grid grid-cols-2 gap-4 mt-6 text-left text-[10px] font-bold font-sans uppercase">
          <div className="space-y-2">
            <div className="flex"><span>Wilayah</span><span className="ml-4 mr-2">:</span><span>Kec. Bilato, Kab. Gorontalo</span></div>
-           <div className="flex"><span>Fase / Kelas</span><span className="ml-8 mr-2">:</span><span>FASE C / KELAS 5</span></div>
+           <div className="flex"><span>Fase / Kelas</span><span className="ml-8 mr-2">:</span><span>{selectedKelas}</span></div>
          </div>
          <div className="space-y-2">
            <div className="flex"><span>Tahun Pelajaran</span><span className="ml-4 mr-2">:</span><span>{activeYear}</span></div>
@@ -359,7 +366,12 @@ const HariEfektifManager: React.FC<HariEfektifManagerProps> = ({ user }) => {
           <div className="bg-white p-6 rounded-[32px] shadow-sm border border-slate-200 flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-4">
               <div className="p-3 bg-indigo-100 text-indigo-600 rounded-2xl"><Clock size={24}/></div>
-              <div><h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Jadwal Mingguan</h3><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1">Kelas 5 <Lock size={10} className="text-amber-500"/></p></div>
+              <div><h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Jadwal Mingguan</h3><p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Kelas {selectedKelas}</p></div>
+            </div>
+            <div className="flex items-center gap-3 bg-slate-100 p-2 rounded-2xl border border-slate-200">
+              {['1','2','3','4','5','6'].map(k => (
+                <button key={k} disabled={isClassLocked && user.kelas !== k} onClick={() => setSelectedKelas(k as Kelas)} className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all ${selectedKelas === k ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600 disabled:opacity-30 cursor-not-allowed'}`}>KELAS {k}</button>
+              ))}
             </div>
           </div>
         )}
@@ -388,7 +400,7 @@ const HariEfektifManager: React.FC<HariEfektifManagerProps> = ({ user }) => {
                             ) : (
                               <select className={`w-full p-2.5 rounded-xl text-[10px] font-black border-none outline-none focus:ring-2 focus:ring-indigo-500 transition-all ${cellJadwal ? 'bg-indigo-50 text-indigo-700 shadow-sm' : 'bg-slate-50 text-slate-400'}`} value={cellJadwal?.mapel || ''} onChange={(e) => handleUpdateJadwal(hari, jamKe, e.target.value)}>
                                 <option value="">- Kosong -</option>
-                                {MATA_PELAJARAN_JADWAL.map(m => <option key={m} value={m}>{m}</option>)}
+                                {SEMUA_AKTIVITAS.map(m => <option key={m} value={m}>{m}</option>)}
                               </select>
                             )}
                           </td>
@@ -428,7 +440,7 @@ const HariEfektifManager: React.FC<HariEfektifManagerProps> = ({ user }) => {
       {activeTab === 'RINCIAN' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4"><div className="p-3 bg-blue-100 text-blue-600 rounded-2xl"><GraduationCap size={24}/></div><div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Penempatan</p><p className="text-lg font-black text-slate-800">Kelas 5 (Fase C)</p></div></div>
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4"><div className="p-3 bg-blue-100 text-blue-600 rounded-2xl"><GraduationCap size={24}/></div><div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Kelas</p><p className="text-lg font-black text-slate-800">Kelas {selectedKelas}</p></div></div>
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4"><div className="p-3 bg-amber-100 text-amber-600 rounded-2xl"><CalendarDays size={24}/></div><div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Efektif</p><p className="text-lg font-black text-slate-800">{totalEfektif} Minggu</p></div></div>
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4"><div className="p-3 bg-indigo-100 text-indigo-600 rounded-2xl"><Clock size={24}/></div><div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">JP/Minggu</p><p className="text-lg font-black text-slate-800">{jpPerMinggu} Jam</p></div></div>
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm flex items-center gap-4"><div className="p-3 bg-emerald-100 text-emerald-600 rounded-2xl"><Calculator size={24}/></div><div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total JP</p><p className="text-lg font-black text-slate-800">{totalJP} Jam</p></div></div>
@@ -443,9 +455,13 @@ const HariEfektifManager: React.FC<HariEfektifManagerProps> = ({ user }) => {
                 </div>
                 <button onClick={handleSyncFromCalendar} disabled={isSyncing} className="bg-indigo-600 text-white px-6 py-2.5 rounded-xl text-[10px] font-black flex items-center gap-2 hover:bg-indigo-700 active:scale-95 transition-all shadow-xl disabled:opacity-50">{isSyncing ? <Loader2 size={14} className="animate-spin"/> : <Wand2 size={14}/>} SINKRONISASI OTOMATIS</button>
               </div>
-              <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-2xl border border-slate-200">
-                 <Lock size={12} className="text-amber-500"/>
-                 <span className="text-[10px] font-black text-slate-500 uppercase">Akses Terkunci: Kelas 5</span>
+              <div className="flex items-center gap-4">
+                <div className="text-right">
+                  <label className="block text-[9px] font-black text-slate-400 uppercase mb-1">Pilih Kelas {isClassLocked && <Lock size={8} className="inline text-amber-500" />}</label>
+                  <select disabled={isClassLocked} className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-xs font-black outline-none disabled:bg-slate-100" value={selectedKelas} onChange={e => setSelectedKelas(e.target.value as Kelas)}>
+                    {['1','2','3','4','5','6'].map(k => <option key={k} value={k}>Kelas {k}</option>)}
+                  </select>
+                </div>
               </div>
             </div>
 

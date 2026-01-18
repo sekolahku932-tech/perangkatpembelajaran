@@ -28,7 +28,7 @@ const LoginPage: React.FC = () => {
     }
 
     // Pemetaan ke format email Firebase (sama dengan UserManager)
-    let email = cleanUsername.includes('@') ? cleanUsername : `${cleanUsername}@sdnsondana.sch.id`;
+    let email = cleanUsername.includes('@') ? cleanUsername : `${cleanUsername}@sdn5bilato.sch.id`;
     
     // Logika Password: Jika kurang dari 6 karakter, otomatis digandakan (karena Firebase minimal 6)
     // Ini harus sama persis dengan logika saat mendaftarkan Guru di UserManager
@@ -61,7 +61,7 @@ const LoginPage: React.FC = () => {
           <div className="inline-flex items-center justify-center p-4 bg-blue-600 rounded-2xl text-white shadow-xl mb-4 animate-in zoom-in duration-500">
             <School size={48} />
           </div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">SDN SONDANA</h1>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">SD NEGERI 5 BILATO</h1>
           <p className="text-slate-500 font-medium uppercase text-xs tracking-[0.2em] mt-1">Sistem Cloud Perangkat Pembelajaran</p>
         </div>
 

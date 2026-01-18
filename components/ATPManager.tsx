@@ -18,12 +18,12 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
   const [isPrintMode, setIsPrintMode] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   
-  const filterFase = Fase.C; // Locked
-  const filterKelas = '5'; // Locked
+  const [filterFase, setFilterFase] = useState<Fase>(Fase.A);
+  const [filterKelas, setFilterKelas] = useState<Kelas>('1');
   const [filterMapel, setFilterMapel] = useState<string>(MATA_PELAJARAN[0]);
   
   const [settings, setSettings] = useState<SchoolSettings>({
-    schoolName: 'SDN SONDANA',
+    schoolName: 'SD NEGERI 5 BILATO',
     address: 'Kecamatan Bilato, Kabupaten Gorontalo',
     principalName: 'Nama Kepala Sekolah',
     principalNip: '-'
@@ -33,19 +33,30 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
   const printRef = useRef<HTMLDivElement>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  // FIX: If guru has no assigned mapel, show all by default
-  const availableMapel = useMemo(() => {
-    if (user.role === 'admin' || !user.mapelDiampu || user.mapelDiampu.length === 0) {
-      return MATA_PELAJARAN;
+  useEffect(() => {
+    if (user.role === 'guru') {
+      if (user.kelas !== '-' && user.kelas !== 'Multikelas') {
+        setFilterKelas(user.kelas as Kelas);
+        updateFaseByKelas(user.kelas as Kelas);
+      }
+      if (user.mapelDiampu && user.mapelDiampu.length > 0) {
+        if (!user.mapelDiampu.includes(filterMapel)) {
+          setFilterMapel(user.mapelDiampu[0]);
+        }
+      }
     }
-    return user.mapelDiampu;
   }, [user]);
 
-  useEffect(() => {
-    if (!availableMapel.includes(filterMapel)) {
-      setFilterMapel(availableMapel[0]);
-    }
-  }, [availableMapel]);
+  const updateFaseByKelas = (kls: Kelas) => {
+    if (['1', '2'].includes(kls)) setFilterFase(Fase.A);
+    else if (['3', '4'].includes(kls)) setFilterFase(Fase.B);
+    else if (['5', '6'].includes(kls)) setFilterFase(Fase.C);
+  };
+
+  const handleKelasChange = (kls: Kelas) => {
+    setFilterKelas(kls);
+    updateFaseByKelas(kls);
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -177,7 +188,7 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
       printWindow.document.write(`
         <html>
           <head>
-            <title>Cetak ATP - SDN SONDANA</title>
+            <title>Cetak ATP - SDN 5 Bilato</title>
             <script src="https://cdn.tailwindcss.com"></script>
             <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet">
             <style>
@@ -245,6 +256,9 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
     link.download = `ATP_${filterMapel.replace(/ /g, '_')}_KLS${filterKelas}.doc`;
     link.click();
   };
+
+  const isClassLocked = user.role === 'guru' && user.teacherType === 'kelas';
+  const availableMapel = user.role === 'admin' ? MATA_PELAJARAN : user.mapelDiampu;
 
   if (isPrintMode) {
     return (
@@ -382,23 +396,18 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-50 p-6 rounded-[24px] border border-slate-100">
           <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Fase (Terkunci) <Lock size={10} className="text-amber-500" /></label>
-            <div className="w-full bg-slate-100 border border-slate-200 rounded-xl p-3 text-sm font-black text-slate-500 uppercase">
-              FASE C
-            </div>
-          </div>
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Kelas (Terkunci) <Lock size={10} className="text-amber-500" /></label>
-            <div className="w-full bg-slate-100 border border-slate-200 rounded-xl p-3 text-sm font-black text-slate-500 uppercase">
-              KELAS 5
-            </div>
-          </div>
-          <div>
-            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Mapel</label>
-            <select className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none" value={filterMapel} onChange={(e) => setFilterMapel(e.target.value)}>
-              {availableMapel.map(m => <option key={m} value={m}>{m}</option>)}
+            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Fase {isClassLocked && <Lock size={10} className="text-amber-500" />}</label>
+            <select className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none disabled:bg-slate-100 disabled:text-slate-400" value={filterFase} disabled={isClassLocked} onChange={(e) => setFilterFase(e.target.value as Fase)}>
+              {Object.values(Fase).map(f => <option key={f} value={f}>{f}</option>)}
             </select>
           </div>
+          <div>
+            <label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Pilih Kelas</label>
+            <select className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none disabled:bg-slate-100 disabled:text-slate-400" value={filterKelas} disabled={isClassLocked} onChange={(e) => handleKelasChange(e.target.value as Kelas)}>
+              {['1','2','3','4','5','6'].map(k => <option key={k} value={k}>Kelas {k}</option>)}
+            </select>
+          </div>
+          <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Mapel</label><select className="w-full bg-white border border-slate-200 rounded-xl p-3 text-sm font-black outline-none" value={filterMapel} onChange={(e) => setFilterMapel(e.target.value)}>{availableMapel.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
         </div>
       </div>
 
@@ -406,8 +415,8 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse min-w-[2000px]">
             <thead>
-              <tr className="bg-slate-900 text-white text-[10px] font-black h-12 uppercase tracking-widest">
-                <th className="px-6 py-4 w-16 text-center border-r border-white/5">No</th>
+              <tr className="bg-slate-900 text-white text-[10px] font-black h-16 uppercase tracking-widest">
+                <th className="px-6 py-4 w-16 text-center">No</th>
                 <th className="px-6 py-4 w-72">Elemen & CP</th>
                 <th className="px-6 py-4 w-64">Tujuan Pembelajaran (TP)</th>
                 <th className="px-6 py-4 w-80">Alur Tujuan (ATP)</th>
@@ -421,7 +430,7 @@ const ATPManager: React.FC<ATPManagerProps> = ({ user }) => {
               {loading ? (
                 <tr><td colSpan={8} className="py-20 text-center"><Loader2 className="animate-spin inline-block text-blue-600" /></td></tr>
               ) : filteredAtp.length === 0 ? (
-                <tr><td colSpan={8} className="px-6 py-24 text-center text-slate-300 font-bold uppercase text-xs tracking-widest">Belum ada data. Klik tombol Ambil dari Analisis.</td></tr>
+                <tr><td colSpan={8} className="px-6 py-24 text-center text-slate-400 italic font-bold uppercase text-xs">Belum ada data. Klik tombol Ambil dari Analisis.</td></tr>
               ) : (
                 filteredAtp.map((item, idx) => (
                   <tr key={item.id} className="align-top group hover:bg-slate-50 transition-colors">

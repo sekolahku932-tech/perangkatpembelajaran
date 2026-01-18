@@ -48,7 +48,7 @@ const App: React.FC = () => {
               teacherType: 'kelas',
               name: firebaseUser.displayName || 'Guru Aktif', 
               nip: '-', 
-              kelas: '5', 
+              kelas: '-', 
               mapelDiampu: [] 
             });
           }
@@ -68,8 +68,7 @@ const App: React.FC = () => {
     setShowLogoutConfirm(false);
   };
 
-  // FIX: Explicitly typed navItems to resolve 'adminOnly' property access error
-  const navItems: { id: string; label: string; icon: React.ReactNode; color: string; bg: string; adminOnly?: boolean }[] = [
+  const navItems = [
     { id: 'DASHBOARD', label: 'Dashboard', icon: <LayoutDashboard size={20} />, color: 'text-slate-900', bg: 'bg-slate-100' },
     { id: 'EFEKTIF', label: 'Hari Efektif', icon: <CalendarDays size={20} />, color: 'text-indigo-600', bg: 'bg-indigo-50' },
     { id: 'CP', label: 'Capaian Pembelajaran', icon: <BookOpen size={20} />, color: 'text-blue-600', bg: 'bg-blue-50' },
@@ -82,8 +81,8 @@ const App: React.FC = () => {
     { id: 'JURNAL', label: 'Jurnal Harian', icon: <BookText size={20} />, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     { id: 'ASESMEN_SUMATIF', label: 'Asesmen Sumatif', icon: <BarChart3 size={20} />, color: 'text-rose-600', bg: 'bg-rose-50' },
     { id: 'EVALUASI', label: 'Evaluasi & Nilai', icon: <ClipboardCheck size={20} />, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-    { id: 'USER', label: 'Manajemen Profil', icon: <Users size={20} />, color: 'text-slate-600', bg: 'bg-slate-100' },
-    { id: 'SETTING', label: 'Pengaturan', icon: <Settings size={20} />, color: 'text-slate-700', bg: 'bg-slate-200' },
+    { id: 'USER', label: 'Manajemen User', icon: <Users size={20} />, color: 'text-slate-600', bg: 'bg-slate-100', adminOnly: true },
+    { id: 'SETTING', label: 'Pengaturan', icon: <Settings size={20} />, color: 'text-slate-700', bg: 'bg-slate-200', adminOnly: true },
   ];
 
   if (loading) {
@@ -130,7 +129,7 @@ const App: React.FC = () => {
                 <School size={24} />
               </div>
               <div>
-                <h1 className="text-sm font-black text-slate-900 leading-none uppercase">SDN SONDANA</h1>
+                <h1 className="text-sm font-black text-slate-900 leading-none uppercase">SDN 5 BILATO</h1>
                 <p className="text-[10px] text-blue-600 font-bold uppercase mt-1">Database Cloud</p>
               </div>
             </div>
