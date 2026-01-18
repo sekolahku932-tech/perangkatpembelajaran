@@ -3,10 +3,11 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { UploadedFile } from "../types";
 
 /**
- * PENTING: SDN 5 Bilato Cloud HANYA menggunakan model FLASH 3.
- * Model Pro (gemini-3-pro) DILARANG karena limit kuota akun gratis (Limit 0).
+ * SDN 5 Bilato - Engine V3.2 (Flash Only)
+ * Kami menggunakan gemini-2.0-flash karena model Pro (Gemini 3 Pro) 
+ * sering dibatasi kuotanya (Limit 0) pada akun Google gratis.
  */
-const MODEL_NAME = 'gemini-3-flash-preview';
+const MODEL_NAME = 'gemini-2.0-flash';
 
 const cleanJsonString = (str: string): string => {
   if (!str) return '';
@@ -14,38 +15,39 @@ const cleanJsonString = (str: string): string => {
 };
 
 /**
- * Handler Error: Memberikan instruksi jelas jika kuota guru habis
+ * DEBUG MONITOR:
+ * Fungsi ini membantu Anda melihat kunci mana yang sedang dipakai 
+ * melalui Console Browser (F12) tanpa membocorkan kunci seutuhnya.
  */
-const formatAIError = (error: any): string => {
-  const errorStr = typeof error === 'string' ? error : (error?.message || "");
-  console.error("DEBUG AI ERROR:", errorStr);
-
-  if (errorStr.includes('429') || errorStr.includes('QUOTA') || errorStr.includes('RESOURCE_EXHAUSTED')) {
-    return "BATAS KUOTA: API Key pribadi Anda telah mencapai batas gratis menit ini. Mohon tunggu 60 detik sebelum mencoba lagi.";
+const logDebugInfo = (customKey?: string) => {
+  if (!customKey) {
+    console.error("[AI DEBUG] Kunci tidak ditemukan! AI akan gagal.");
+    return;
   }
-
-  if (errorStr.includes('Limit: 0') || errorStr.includes('PRO')) {
-    return "MODEL TIDAK TERSEDIA: Google membatasi akun Anda untuk model Pro. Sistem sudah diarahkan ke Flash, harap pastikan API Key Anda benar-benar valid.";
-  }
-
-  if (errorStr.includes('API_KEY_REQUIRED')) {
-    return "AKSES DITOLAK: Anda belum mengatur API Key di Profil. Klik Nama Anda di pojok kiri bawah untuk memasukkan kunci.";
-  }
-
-  return `GANGGUAN KUNCI: Pastikan API Key Anda benar dan baru. Error: ${errorStr.substring(0, 50)}...`;
+  const masked = customKey.substring(0, 6) + "..." + customKey.substring(customKey.length - 4);
+  console.warn(`[AI ENGINE V3.2] Menggunakan Model: ${MODEL_NAME}`);
+  console.warn(`[AI ENGINE V3.2] Menggunakan Key: ${masked}`);
 };
 
-/**
- * LOGIKA ISOLASI KUNCI:
- * Fungsi ini HANYA akan mengambil kunci dari parameter 'customKey'.
- * Tidak ada lagi fallback ke process.env atau variabel rahasia lainnya.
- */
+const formatAIError = (error: any): string => {
+  const errorStr = typeof error === 'string' ? error : (error?.message || JSON.stringify(error));
+  console.error("FULL AI ERROR LOG:", error);
+
+  if (errorStr.includes('429') || errorStr.includes('QUOTA')) {
+    return "KUOTA HABIS: API Key Anda mencapai batas menit ini. Tunggu 60 detik.";
+  }
+  if (errorStr.includes('Limit: 0') || errorStr.includes('PRO')) {
+    return "ERROR MODEL PRO: Google mendeteksi penggunaan model Pro yang dilarang. Harap pastikan Anda sudah memuat ulang halaman (Ctrl+F5) untuk beralih ke mesin FLASH.";
+  }
+  return `GANGGUAN KUNCI: Pastikan API Key di Profil benar. (Error: ${errorStr.substring(0, 30)}...)`;
+};
+
 const getApiKey = (customKey?: string) => {
   const key = customKey?.trim();
   if (key && key.length > 20) {
+    logDebugInfo(key);
     return key;
   }
-  // Jika tidak ada kunci yang dilewatkan dari profil user, lemparkan error
   throw new Error('API_KEY_REQUIRED');
 };
 
@@ -151,7 +153,7 @@ export const generateRPMContent = async (tp: string, materi: string, kelas: stri
     const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
-      contents: `Susun RPM mendalam untuk TP: ${tp}. Model: ${praktikPedagogis}`,
+      contents: `Susun RPM SD Kelas ${kelas} materi ${materi} untuk TP: ${tp}. Model: ${praktikPedagogis}`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {

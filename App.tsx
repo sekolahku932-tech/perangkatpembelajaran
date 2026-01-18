@@ -5,7 +5,7 @@ import {
   User as UserIcon, Settings, Users, CalendarDays, FileText, 
   CalendarRange, Rocket, Menu, ChevronRight, Loader2, AlertTriangle,
   BarChart3, LayoutDashboard, Code, BookText, PenTool, ClipboardCheck,
-  ClipboardList, Lock, Key, ShieldAlert, Info, X, Save, Eye, EyeOff, ShieldCheck
+  ClipboardList, Lock, Key, ShieldAlert, Info, X, Save, Eye, EyeOff, ShieldCheck, Cpu
 } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import CPManager from './components/CPManager';
@@ -86,7 +86,6 @@ const App: React.FC = () => {
     if (!user) return;
     const cleanKey = profileFormData.apiKey.trim();
     
-    // Validasi panjang kunci minimal standar Google
     if (cleanKey.length > 0 && cleanKey.length < 25) {
       alert('API Key nampaknya tidak lengkap. Harap salin seluruh kode dari Google AI Studio.');
       return;
@@ -101,7 +100,7 @@ const App: React.FC = () => {
       }, { merge: true });
       
       setShowProfileModal(false);
-      alert('Kunci Berhasil Diaktifkan! Sekarang fitur AI menggunakan kuota pribadi Anda.');
+      alert('KUNCI AKTIF: Mesin AI sekarang menggunakan kuota pribadi Anda dengan model Flash terbaru.');
     } catch (e) {
       alert('Gagal: ' + (e as Error).message);
     } finally {
@@ -137,7 +136,6 @@ const App: React.FC = () => {
 
   if (!user) return <LoginPage />;
 
-  // LOGIKA PENGUNCIAN: API Key wajib minimal 25 karakter (panjang standar Gemini)
   const hasNoApiKey = !user.apiKey || user.apiKey.trim().length < 25;
   
   const isMenuAllowedWithoutKey = (menuId: string) => {
@@ -173,7 +171,7 @@ const App: React.FC = () => {
                   <input type={showKey ? "text" : "password"} className="w-full bg-white border border-indigo-200 rounded-xl py-3 pl-4 pr-12 text-xs font-mono font-bold focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Salin dari Google AI Studio..." value={profileFormData.apiKey} onChange={e => setProfileFormData({...profileFormData, apiKey: e.target.value})} />
                   <button onClick={() => setShowKey(!showKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-400">{showKey ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
                 </div>
-                <p className="text-[9px] text-indigo-400 font-medium leading-relaxed italic">Harap masukkan kunci Anda sendiri. Penggunaan kunci sekolah telah diblokir demi keamanan data masing-masing guru.</p>
+                <p className="text-[9px] text-indigo-400 font-medium leading-relaxed italic">Gunakan API Key sendiri untuk performa maksimal dengan model Flash V2.</p>
               </div>
             </div>
             <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
@@ -209,8 +207,8 @@ const App: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-blue-600 rounded-xl text-white shadow-lg"><School size={24} /></div>
               <div>
-                <h1 className="text-sm font-black text-slate-900 uppercase">SDN 5 BILATO</h1>
-                <p className="text-[10px] text-blue-600 font-bold uppercase mt-1">Sistem Perangkat Guru</p>
+                <h1 className="text-sm font-black text-slate-900 uppercase leading-none">SDN 5 BILATO</h1>
+                <p className="text-[8px] text-blue-600 font-black uppercase mt-1 tracking-widest bg-blue-50 px-1.5 py-0.5 rounded">V3.2 - FLASH ENGINE</p>
               </div>
             </div>
           </div>
@@ -264,7 +262,11 @@ const App: React.FC = () => {
           <div className="flex items-center gap-3">
              <div className={`px-4 py-1.5 rounded-full border flex items-center gap-2 transition-all ${hasNoApiKey ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-emerald-50 border-emerald-100 text-emerald-600'}`}>
                 {hasNoApiKey ? <ShieldAlert size={14}/> : <ShieldCheck size={14}/>}
-                <span className="text-[9px] font-black uppercase tracking-widest">{hasNoApiKey ? 'Akses AI Terkunci' : 'Mode Kunci Pribadi Aktif'}</span>
+                <span className="text-[9px] font-black uppercase tracking-widest">{hasNoApiKey ? 'Akses AI Terkunci' : 'Kunci Flash Aktif'}</span>
+             </div>
+             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-900 text-white rounded-full">
+                <Cpu size={12} className="text-cyan-400 animate-pulse" />
+                <span className="text-[8px] font-black uppercase tracking-tighter">Mesin 2.0 Flash</span>
              </div>
           </div>
         </header>
@@ -274,21 +276,21 @@ const App: React.FC = () => {
             {isCurrentMenuRestricted ? (
               <div className="flex flex-col items-center justify-center py-32 text-center animate-in fade-in zoom-in-95 duration-500">
                  <div className="w-24 h-24 bg-rose-100 text-rose-600 rounded-[40px] flex items-center justify-center mb-8 shadow-xl shadow-rose-200/50"><ShieldAlert size={48}/></div>
-                 <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-4">API Key Pribadi Wajib Diisi</h2>
+                 <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-4">Update API Key Diperlukan</h2>
                  <p className="text-slate-500 font-medium max-w-md leading-relaxed mb-8">
-                    Maaf, sistem mendeteksi Anda belum mengisi <b>API Key pribadi</b> di Profil. Sesuai kebijakan SDN 5 Bilato, setiap guru wajib menggunakan kuota pribadi masing-masing.
+                    Sistem SDN 5 Bilato telah diperbarui ke **Engine V3.2 (Flash Only)**. Harap masukkan API Key baru Anda di Profil agar bisa menggunakan modul ini.
                  </p>
                  <div className="bg-white border border-slate-200 p-6 rounded-3xl shadow-sm mb-8 text-left max-w-md w-full">
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Info size={14} className="text-blue-500"/> Solusi Masalah:</h4>
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Info size={14} className="text-blue-500"/> Informasi Teknis:</h4>
                     <ul className="space-y-3 text-[11px] font-bold text-slate-600">
-                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">1</span><span>Klik tombol <b>Set API Key Saya</b> di bawah ini.</span></li>
-                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">2</span><span>Sistem SDN 5 Bilato akan otomatis menggunakan model <b>Flash 3</b> yang lebih handal.</span></li>
-                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">3</span><span>Error "Limit 0" atau "Pro-Model Restricted" akan hilang selamanya.</span></li>
+                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">1</span><span>Aplikasi sekarang menggunakan model <b>Gemini 2.0 Flash</b> secara permanen.</span></li>
+                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">2</span><span>Model Pro telah dinonaktifkan untuk menghindari error kuota (429).</span></li>
+                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">3</span><span>Jika masih error, tekan <b>Ctrl + F5</b> untuk membersihkan cache browser.</span></li>
                     </ul>
                  </div>
                  <div className="flex flex-col sm:flex-row gap-3">
                     <button onClick={() => setActiveMenu('DASHBOARD')} className="px-8 py-4 rounded-2xl text-xs font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 transition-all">KEMBALI</button>
-                    <button onClick={() => setShowProfileModal(true)} className="bg-blue-600 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl flex items-center gap-2"><Key size={16}/> SET API KEY SAYA</button>
+                    <button onClick={() => setShowProfileModal(true)} className="bg-blue-600 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl flex items-center gap-2"><Key size={16}/> UPDATE KUNCI SAYA</button>
                  </div>
               </div>
             ) : (
