@@ -100,7 +100,7 @@ const App: React.FC = () => {
       }, { merge: true });
       
       setShowProfileModal(false);
-      alert('KUNCI AKTIF: Mesin AI sekarang menggunakan kuota pribadi Anda dengan model Flash terbaru.');
+      alert('UPDATE BERHASIL: Mesin Flash 3 diaktifkan dengan kuota pribadi Anda.');
     } catch (e) {
       alert('Gagal: ' + (e as Error).message);
     } finally {
@@ -171,7 +171,7 @@ const App: React.FC = () => {
                   <input type={showKey ? "text" : "password"} className="w-full bg-white border border-indigo-200 rounded-xl py-3 pl-4 pr-12 text-xs font-mono font-bold focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Salin dari Google AI Studio..." value={profileFormData.apiKey} onChange={e => setProfileFormData({...profileFormData, apiKey: e.target.value})} />
                   <button onClick={() => setShowKey(!showKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-400">{showKey ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
                 </div>
-                <p className="text-[9px] text-indigo-400 font-medium leading-relaxed italic">Gunakan API Key sendiri untuk performa maksimal dengan model Flash V2.</p>
+                <p className="text-[9px] text-indigo-400 font-medium leading-relaxed italic">Wajib: Gunakan API Key sendiri agar terhindar dari Limit 0 model Pro.</p>
               </div>
             </div>
             <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
@@ -208,7 +208,7 @@ const App: React.FC = () => {
               <div className="p-2.5 bg-blue-600 rounded-xl text-white shadow-lg"><School size={24} /></div>
               <div>
                 <h1 className="text-sm font-black text-slate-900 uppercase leading-none">SDN 5 BILATO</h1>
-                <p className="text-[8px] text-blue-600 font-black uppercase mt-1 tracking-widest bg-blue-50 px-1.5 py-0.5 rounded">V3.2 - FLASH ENGINE</p>
+                <p className="text-[8px] text-blue-600 font-black uppercase mt-1 tracking-widest bg-blue-50 px-1.5 py-0.5 rounded">V3.3 - FLASH 3 ENGINE</p>
               </div>
             </div>
           </div>
@@ -262,11 +262,11 @@ const App: React.FC = () => {
           <div className="flex items-center gap-3">
              <div className={`px-4 py-1.5 rounded-full border flex items-center gap-2 transition-all ${hasNoApiKey ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-emerald-50 border-emerald-100 text-emerald-600'}`}>
                 {hasNoApiKey ? <ShieldAlert size={14}/> : <ShieldCheck size={14}/>}
-                <span className="text-[9px] font-black uppercase tracking-widest">{hasNoApiKey ? 'Akses AI Terkunci' : 'Kunci Flash Aktif'}</span>
+                <span className="text-[9px] font-black uppercase tracking-widest">{hasNoApiKey ? 'Akses AI Terkunci' : 'Flash 3 Engine Aktif'}</span>
              </div>
              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-900 text-white rounded-full">
                 <Cpu size={12} className="text-cyan-400 animate-pulse" />
-                <span className="text-[8px] font-black uppercase tracking-tighter">Mesin 2.0 Flash</span>
+                <span className="text-[8px] font-black uppercase tracking-tighter">SDN 5 BILATO V3.3</span>
              </div>
           </div>
         </header>
@@ -278,19 +278,19 @@ const App: React.FC = () => {
                  <div className="w-24 h-24 bg-rose-100 text-rose-600 rounded-[40px] flex items-center justify-center mb-8 shadow-xl shadow-rose-200/50"><ShieldAlert size={48}/></div>
                  <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-4">Update API Key Diperlukan</h2>
                  <p className="text-slate-500 font-medium max-w-md leading-relaxed mb-8">
-                    Sistem SDN 5 Bilato telah diperbarui ke **Engine V3.2 (Flash Only)**. Harap masukkan API Key baru Anda di Profil agar bisa menggunakan modul ini.
+                    Sistem SDN 5 Bilato telah ditingkatkan ke <b>Engine V3.3 (Flash 3 Stable)</b>. Harap masukkan API Key baru Anda di Profil agar bisa menggunakan modul ini dan menghindari error "Limit 0" model Pro.
                  </p>
                  <div className="bg-white border border-slate-200 p-6 rounded-3xl shadow-sm mb-8 text-left max-w-md w-full">
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Info size={14} className="text-blue-500"/> Informasi Teknis:</h4>
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Info size={14} className="text-blue-500"/> Instruksi Penting:</h4>
                     <ul className="space-y-3 text-[11px] font-bold text-slate-600">
-                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">1</span><span>Aplikasi sekarang menggunakan model <b>Gemini 2.0 Flash</b> secara permanen.</span></li>
-                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">2</span><span>Model Pro telah dinonaktifkan untuk menghindari error kuota (429).</span></li>
-                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">3</span><span>Jika masih error, tekan <b>Ctrl + F5</b> untuk membersihkan cache browser.</span></li>
+                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">1</span><span>Buka Google AI Studio, buat kunci baru, lalu tempel di menu Profil (Nama Anda).</span></li>
+                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">2</span><span>Aplikasi ini HANYA menggunakan model <b>Flash 3</b> yang gratis dan berkecepatan tinggi.</span></li>
+                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">3</span><span>Jika masih muncul error model Pro, tekan <b>Ctrl + F5</b> di keyboard Anda.</span></li>
                     </ul>
                  </div>
                  <div className="flex flex-col sm:flex-row gap-3">
                     <button onClick={() => setActiveMenu('DASHBOARD')} className="px-8 py-4 rounded-2xl text-xs font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 transition-all">KEMBALI</button>
-                    <button onClick={() => setShowProfileModal(true)} className="bg-blue-600 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl flex items-center gap-2"><Key size={16}/> UPDATE KUNCI SAYA</button>
+                    <button onClick={() => setShowProfileModal(true)} className="bg-blue-600 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl flex items-center gap-2"><Key size={16}/> MASUKKAN KUNCI SAYA</button>
                  </div>
               </div>
             ) : (

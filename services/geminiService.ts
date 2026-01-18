@@ -3,11 +3,11 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { UploadedFile } from "../types";
 
 /**
- * SDN 5 Bilato - Engine V3.2 (Flash Only)
- * Kami menggunakan gemini-2.0-flash karena model Pro (Gemini 3 Pro) 
- * sering dibatasi kuotanya (Limit 0) pada akun Google gratis.
+ * SDN 5 Bilato - Engine V3.3 (Flash 3 Stable)
+ * PENTING: Kami menggunakan gemini-3-flash-preview secara eksplisit.
+ * Jika muncul error "GEMINI-3-PRO", berarti ada masalah caching di sisi hosting/browser.
  */
-const MODEL_NAME = 'gemini-2.0-flash';
+const MODEL_NAME = 'gemini-3-flash-preview';
 
 const cleanJsonString = (str: string): string => {
   if (!str) return '';
@@ -15,37 +15,34 @@ const cleanJsonString = (str: string): string => {
 };
 
 /**
- * DEBUG MONITOR:
- * Fungsi ini membantu Anda melihat kunci mana yang sedang dipakai 
- * melalui Console Browser (F12) tanpa membocorkan kunci seutuhnya.
+ * DEBUG VERIFICATION:
+ * Log ini akan muncul di Console Browser (F12) setiap kali AI dipanggil.
+ * Ini untuk membuktikan bahwa aplikasi TIDAK memanggil model Pro.
  */
-const logDebugInfo = (customKey?: string) => {
-  if (!customKey) {
-    console.error("[AI DEBUG] Kunci tidak ditemukan! AI akan gagal.");
-    return;
-  }
-  const masked = customKey.substring(0, 6) + "..." + customKey.substring(customKey.length - 4);
-  console.warn(`[AI ENGINE V3.2] Menggunakan Model: ${MODEL_NAME}`);
-  console.warn(`[AI ENGINE V3.2] Menggunakan Key: ${masked}`);
+const logRequestInfo = (customKey?: string) => {
+  const maskedKey = customKey ? `${customKey.substring(0, 6)}...${customKey.substring(customKey.length - 4)}` : 'MISSING';
+  console.info(`[AI CALL] Model: ${MODEL_NAME} | Key: ${maskedKey}`);
 };
 
 const formatAIError = (error: any): string => {
   const errorStr = typeof error === 'string' ? error : (error?.message || JSON.stringify(error));
-  console.error("FULL AI ERROR LOG:", error);
+  console.error("DETAILED AI ERROR:", error);
 
   if (errorStr.includes('429') || errorStr.includes('QUOTA')) {
-    return "KUOTA HABIS: API Key Anda mencapai batas menit ini. Tunggu 60 detik.";
+    return "KUOTA HABIS: Batas gratis API Key Anda sudah tercapai untuk menit ini. Mohon tunggu sebentar.";
   }
+  
   if (errorStr.includes('Limit: 0') || errorStr.includes('PRO')) {
-    return "ERROR MODEL PRO: Google mendeteksi penggunaan model Pro yang dilarang. Harap pastikan Anda sudah memuat ulang halaman (Ctrl+F5) untuk beralih ke mesin FLASH.";
+    return "CACHING ERROR: Sistem mendeteksi permintaan model Pro. Harap tekan Ctrl+F5 untuk membersihkan cache browser dan beralih ke Mesin Flash V3.3.";
   }
-  return `GANGGUAN KUNCI: Pastikan API Key di Profil benar. (Error: ${errorStr.substring(0, 30)}...)`;
+
+  return `GANGGUAN KUNCI: Harap pastikan API Key di Profil sudah benar. (Error: ${errorStr.substring(0, 40)}...)`;
 };
 
 const getApiKey = (customKey?: string) => {
   const key = customKey?.trim();
   if (key && key.length > 20) {
-    logDebugInfo(key);
+    logRequestInfo(key);
     return key;
   }
   throw new Error('API_KEY_REQUIRED');
