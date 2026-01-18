@@ -5,7 +5,7 @@ import {
   User as UserIcon, Settings, Users, CalendarDays, FileText, 
   CalendarRange, Rocket, Menu, ChevronRight, Loader2, AlertTriangle,
   BarChart3, LayoutDashboard, Code, BookText, PenTool, ClipboardCheck,
-  ClipboardList, Lock, Key, ShieldAlert, Info, X, Save, Eye, EyeOff, ShieldCheck, Cpu, Zap
+  ClipboardList, Lock, Key, ShieldAlert, Info, X, Save, Eye, EyeOff, ShieldCheck, Cpu, Zap, RefreshCcw
 } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import CPManager from './components/CPManager';
@@ -26,6 +26,8 @@ import LoginPage from './components/LoginPage';
 import { User } from './types';
 import { auth, db, onAuthStateChanged, signOut, doc, onSnapshot, setDoc } from './services/firebase';
 
+const APP_VERSION = '3.5';
+
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -37,6 +39,16 @@ const App: React.FC = () => {
   const [profileFormData, setProfileFormData] = useState({ name: '', nip: '', apiKey: '' });
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [showKey, setShowKey] = useState(false);
+
+  // AUTO-RELOAD LOGIC FOR CACHE BREAKING
+  useEffect(() => {
+    const savedVersion = localStorage.getItem('sdn5_app_version');
+    if (savedVersion !== APP_VERSION) {
+      console.warn("New Version Detected. Purging Cache...");
+      localStorage.setItem('sdn5_app_version', APP_VERSION);
+      window.location.reload(); 
+    }
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -100,7 +112,7 @@ const App: React.FC = () => {
       }, { merge: true });
       
       setShowProfileModal(false);
-      alert('SINKRONISASI BERHASIL: Mesin Ultra Flash V3.4 telah aktif.');
+      alert('RECOVERY BERHASIL: Mesin Flash Lite V3.5 Aktif.');
     } catch (e) {
       alert('Gagal: ' + (e as Error).message);
     } finally {
@@ -128,8 +140,8 @@ const App: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center">
-        <Loader2 className="animate-spin text-blue-600 mb-4" size={48} />
-        <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Sinkronisasi Cloud...</p>
+        <Loader2 className="animate-spin text-amber-600 mb-4" size={48} />
+        <p className="text-sm font-black text-slate-400 uppercase tracking-widest">Memulihkan Koneksi Cloud...</p>
       </div>
     );
   }
@@ -155,7 +167,7 @@ const App: React.FC = () => {
           <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95">
             <div className="p-8 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-blue-600 text-white rounded-2xl shadow-lg"><UserIcon size={20} /></div>
+                <div className="p-2.5 bg-amber-600 text-white rounded-2xl shadow-lg"><UserIcon size={20} /></div>
                 <div>
                   <h3 className="text-lg font-black text-slate-900 uppercase">Profil & API Key</h3>
                   <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Update Data Pribadi</p>
@@ -164,37 +176,21 @@ const App: React.FC = () => {
               <button onClick={() => setShowProfileModal(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all"><X size={24} /></button>
             </div>
             <div className="p-8 space-y-5">
-              <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Nama Lengkap</label><input className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-blue-600" value={profileFormData.name} onChange={e => setProfileFormData({...profileFormData, name: e.target.value})} /></div>
-              <div className="p-5 bg-indigo-50 border border-indigo-100 rounded-3xl space-y-3">
-                <label className="flex items-center gap-2 text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1"><Key size={14}/> Gemini API Key Pribadi</label>
+              <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Nama Lengkap</label><input className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-amber-600" value={profileFormData.name} onChange={e => setProfileFormData({...profileFormData, name: e.target.value})} /></div>
+              <div className="p-5 bg-amber-50 border border-amber-100 rounded-3xl space-y-3">
+                <label className="flex items-center gap-2 text-[10px] font-black text-amber-600 uppercase tracking-widest ml-1"><Key size={14}/> Gemini API Key Pribadi</label>
                 <div className="relative">
-                  <input type={showKey ? "text" : "password"} className="w-full bg-white border border-indigo-200 rounded-xl py-3 pl-4 pr-12 text-xs font-mono font-bold focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Salin dari Google AI Studio..." value={profileFormData.apiKey} onChange={e => setProfileFormData({...profileFormData, apiKey: e.target.value})} />
-                  <button onClick={() => setShowKey(!showKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-400">{showKey ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
+                  <input type={showKey ? "text" : "password"} className="w-full bg-white border border-amber-200 rounded-xl py-3 pl-4 pr-12 text-xs font-mono font-bold focus:ring-2 focus:ring-amber-500 outline-none" placeholder="Salin dari Google AI Studio..." value={profileFormData.apiKey} onChange={e => setProfileFormData({...profileFormData, apiKey: e.target.value})} />
+                  <button onClick={() => setShowKey(!showKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-amber-400">{showKey ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
                 </div>
-                <p className="text-[9px] text-indigo-400 font-medium leading-relaxed italic">Wajib: Gunakan API Key sendiri agar terhindar dari Limit 0 model Pro.</p>
+                <p className="text-[9px] text-amber-600 font-medium leading-relaxed italic">Wajib: Gunakan API Key sendiri agar terhindar dari Limit 0 model Pro.</p>
               </div>
             </div>
             <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
               <button onClick={() => setShowProfileModal(false)} className="flex-1 px-6 py-4 rounded-2xl text-xs font-black text-slate-500 bg-white border border-slate-200">BATAL</button>
-              <button onClick={handleSaveProfile} disabled={isSavingProfile} className="flex-1 px-6 py-4 rounded-2xl text-xs font-black text-white bg-blue-600 shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all">
+              <button onClick={handleSaveProfile} disabled={isSavingProfile} className="flex-1 px-6 py-4 rounded-2xl text-xs font-black text-white bg-amber-600 shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all">
                 {isSavingProfile ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} SIMPAN & AKTIFKAN
               </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showLogoutConfirm && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
-          <div className="bg-white rounded-[32px] shadow-2xl w-full max-sm overflow-hidden animate-in zoom-in-95">
-            <div className="p-8 text-center">
-              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6 mx-auto"><AlertTriangle size={32} /></div>
-              <h3 className="text-xl font-black text-slate-900 uppercase mb-2">Konfirmasi Keluar</h3>
-              <p className="text-slate-500 font-medium text-sm">Anda akan keluar dari database cloud.</p>
-            </div>
-            <div className="p-4 bg-slate-50 flex gap-3">
-              <button onClick={() => setShowLogoutConfirm(false)} className="flex-1 px-6 py-3 rounded-xl text-xs font-black text-slate-500 bg-white border border-slate-200">BATAL</button>
-              <button onClick={handleLogout} className="flex-1 px-6 py-3 rounded-xl text-xs font-black text-white bg-red-600">KELUAR</button>
             </div>
           </div>
         </div>
@@ -205,10 +201,10 @@ const App: React.FC = () => {
         <div className="flex flex-col h-full">
           <div className="p-6 border-b border-slate-100 shrink-0">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-blue-600 rounded-xl text-white shadow-lg"><School size={24} /></div>
+              <div className="p-2.5 bg-amber-500 rounded-xl text-white shadow-lg"><School size={24} /></div>
               <div>
                 <h1 className="text-sm font-black text-slate-900 uppercase leading-none">SDN 5 BILATO</h1>
-                <p className="text-[8px] text-indigo-600 font-black uppercase mt-1 tracking-widest bg-indigo-50 px-1.5 py-0.5 rounded">V3.4 - ULTRA FLASH</p>
+                <p className="text-[8px] text-amber-600 font-black uppercase mt-1 tracking-widest bg-amber-50 px-1.5 py-0.5 rounded">V3.5 - RECOVERY ENGINE</p>
               </div>
             </div>
           </div>
@@ -235,7 +231,7 @@ const App: React.FC = () => {
           </nav>
           <div className="p-4 border-t border-slate-100 shrink-0">
             <button onClick={() => setShowProfileModal(true)} className="w-full bg-slate-50 hover:bg-slate-100 rounded-2xl p-4 flex items-center gap-3 mb-4 transition-all group">
-              <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 group-hover:text-blue-600 transition-all"><UserIcon size={20} /></div>
+              <div className="w-10 h-10 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 group-hover:text-amber-600 transition-all"><UserIcon size={20} /></div>
               <div className="overflow-hidden text-left">
                 <p className="text-xs font-black text-slate-900 truncate uppercase">{user.name}</p>
                 <div className="flex items-center gap-1">
@@ -254,20 +250,20 @@ const App: React.FC = () => {
           <div className="flex items-center gap-4">
             <button onClick={() => setIsSidebarOpen(true)} className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-xl"><Menu size={24} /></button>
             <div className="flex items-center gap-2 text-slate-400 text-[10px] font-black uppercase tracking-widest">
-              <GraduationCap size={16} className="text-blue-500" />
+              <GraduationCap size={16} className="text-amber-500" />
               <span>Menu</span><ChevronRight size={12} />
               <span className="text-slate-900">{navItems.find(i => i.id === activeMenu)?.label}</span>
             </div>
           </div>
           <div className="flex items-center gap-3">
-             <div className={`px-4 py-1.5 rounded-full border flex items-center gap-2 transition-all ${hasNoApiKey ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-indigo-50 border-indigo-100 text-indigo-600'}`}>
+             <div className={`px-4 py-1.5 rounded-full border flex items-center gap-2 transition-all ${hasNoApiKey ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-amber-50 border-amber-100 text-amber-600'}`}>
                 {hasNoApiKey ? <ShieldAlert size={14}/> : <ShieldCheck size={14}/>}
-                <span className="text-[9px] font-black uppercase tracking-widest">{hasNoApiKey ? 'Akses AI Terkunci' : 'Engine 2.0 Aktif'}</span>
+                <span className="text-[9px] font-black uppercase tracking-widest">{hasNoApiKey ? 'Akses AI Terkunci' : 'Flash Lite V3.5'}</span>
              </div>
-             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-900 text-white rounded-full border border-indigo-500/30">
-                <Zap size={12} className="text-indigo-400 animate-pulse" />
-                <span className="text-[8px] font-black uppercase tracking-tighter">ULTRA FLASH 2.0</span>
-             </div>
+             <button onClick={() => window.location.reload()} className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-900 text-white rounded-full border border-amber-500/30 hover:bg-black transition-all">
+                <RefreshCcw size={12} className="text-amber-400" />
+                <span className="text-[8px] font-black uppercase tracking-tighter">REFRESH SYSTEM</span>
+             </button>
           </div>
         </header>
 
@@ -275,22 +271,22 @@ const App: React.FC = () => {
           <div className="max-w-7xl mx-auto">
             {isCurrentMenuRestricted ? (
               <div className="flex flex-col items-center justify-center py-32 text-center animate-in fade-in zoom-in-95 duration-500">
-                 <div className="w-24 h-24 bg-rose-100 text-rose-600 rounded-[40px] flex items-center justify-center mb-8 shadow-xl shadow-rose-200/50"><ShieldAlert size={48}/></div>
-                 <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-4">Cache Browser Harus Dibersihkan</h2>
+                 <div className="w-24 h-24 bg-amber-100 text-amber-600 rounded-[40px] flex items-center justify-center mb-8 shadow-xl shadow-amber-200/50"><ShieldAlert size={48}/></div>
+                 <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-4">Update Wajib V3.5</h2>
                  <p className="text-slate-500 font-medium max-w-md leading-relaxed mb-8">
-                    Sistem SDN 5 Bilato telah ditingkatkan ke <b>Engine V3.4 (Ultra Flash)</b>. Jika Anda masih melihat error Pro, harap tekan <b>Ctrl + F5</b> di keyboard Anda sekarang.
+                    Sistem mendeteksi bahwa API Key sekolah telah diblokir untuk model Pro. Kami telah beralih ke <b>Mesin V3.5 (Flash Lite)</b>. Harap input API Key Anda sendiri agar sistem bisa berjalan kembali.
                  </p>
                  <div className="bg-white border border-slate-200 p-6 rounded-3xl shadow-sm mb-8 text-left max-w-md w-full">
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Info size={14} className="text-blue-500"/> Instruksi Pembersihan:</h4>
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Info size={14} className="text-amber-500"/> Instruksi Pemulihan:</h4>
                     <ul className="space-y-3 text-[11px] font-bold text-slate-600">
-                       <li className="flex gap-3"><span className="w-5 h-5 bg-indigo-50 text-indigo-600 rounded flex items-center justify-center shrink-0">1</span><span>Mesin baru menggunakan model <b>Gemini 2.0 Flash</b> untuk menghindari limit 0.</span></li>
-                       <li className="flex gap-3"><span className="w-5 h-5 bg-indigo-50 text-indigo-600 rounded flex items-center justify-center shrink-0">2</span><span>Tekan <b>Ctrl + F5</b> berkali-kali sampai tulisan di kiri atas menunjukkan <b>V3.4</b>.</span></li>
-                       <li className="flex gap-3"><span className="w-5 h-5 bg-indigo-50 text-indigo-600 rounded flex items-center justify-center shrink-0">3</span><span>Update kembali API Key Anda di menu Profil jika diperlukan.</span></li>
+                       <li className="flex gap-3"><span className="w-5 h-5 bg-amber-50 text-amber-600 rounded flex items-center justify-center shrink-0">1</span><span>Masuk ke menu Profil, hapus kunci lama, tempel kunci baru dari AI Studio.</span></li>
+                       <li className="flex gap-3"><span className="w-5 h-5 bg-amber-50 text-amber-600 rounded flex items-center justify-center shrink-0">2</span><span>V3.5 menggunakan model <b>Flash Lite</b> yang lebih stabil dan hemat kuota.</span></li>
+                       <li className="flex gap-3"><span className="w-5 h-5 bg-amber-50 text-amber-600 rounded flex items-center justify-center shrink-0">3</span><span>Jika masih melihat error model PRO, tekan <b>Ctrl + F5</b> SEKARANG.</span></li>
                     </ul>
                  </div>
                  <div className="flex flex-col sm:flex-row gap-3">
                     <button onClick={() => setActiveMenu('DASHBOARD')} className="px-8 py-4 rounded-2xl text-xs font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 transition-all">KEMBALI</button>
-                    <button onClick={() => setShowProfileModal(true)} className="bg-indigo-600 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl flex items-center gap-2"><Key size={16}/> UPDATE KUNCI SAYA</button>
+                    <button onClick={() => setShowProfileModal(true)} className="bg-amber-600 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-amber-700 transition-all shadow-xl flex items-center gap-2"><Key size={16}/> UPDATE KUNCI SAYA</button>
                  </div>
               </div>
             ) : (
