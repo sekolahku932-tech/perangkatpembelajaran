@@ -5,7 +5,7 @@ import {
   User as UserIcon, Settings, Users, CalendarDays, FileText, 
   CalendarRange, Rocket, Menu, ChevronRight, Loader2, AlertTriangle,
   BarChart3, LayoutDashboard, Code, BookText, PenTool, ClipboardCheck,
-  ClipboardList, Lock, Key, ShieldAlert, Info, X, Save, Eye, EyeOff
+  ClipboardList, Lock, Key, ShieldAlert, Info, X, Save, Eye, EyeOff, ShieldCheck
 } from 'lucide-react';
 import Dashboard from './components/Dashboard';
 import CPManager from './components/CPManager';
@@ -84,9 +84,16 @@ const App: React.FC = () => {
 
   const handleSaveProfile = async () => {
     if (!user) return;
+    const cleanKey = profileFormData.apiKey.trim();
+    
+    // Validasi panjang kunci minimal standar Google
+    if (cleanKey.length > 0 && cleanKey.length < 25) {
+      alert('API Key nampaknya tidak lengkap. Harap salin seluruh kode dari Google AI Studio.');
+      return;
+    }
+
     setIsSavingProfile(true);
     try {
-      const cleanKey = profileFormData.apiKey.trim();
       await setDoc(doc(db, "users", user.id), {
         name: profileFormData.name.toUpperCase(),
         nip: profileFormData.nip,
@@ -94,7 +101,7 @@ const App: React.FC = () => {
       }, { merge: true });
       
       setShowProfileModal(false);
-      alert('Profil diperbarui! Sekarang sistem menggunakan API Key pribadi Anda.');
+      alert('Kunci Berhasil Diaktifkan! Sekarang fitur AI menggunakan kuota pribadi Anda.');
     } catch (e) {
       alert('Gagal: ' + (e as Error).message);
     } finally {
@@ -130,8 +137,8 @@ const App: React.FC = () => {
 
   if (!user) return <LoginPage />;
 
-  // LOGIKA PENGUNCIAN: API Key minimal 10 karakter untuk dianggap valid
-  const hasNoApiKey = !user.apiKey || user.apiKey.trim().length < 10;
+  // LOGIKA PENGUNCIAN: API Key wajib minimal 25 karakter (panjang standar Gemini)
+  const hasNoApiKey = !user.apiKey || user.apiKey.trim().length < 25;
   
   const isMenuAllowedWithoutKey = (menuId: string) => {
     if (menuId === 'DASHBOARD') return true;
@@ -143,7 +150,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 flex overflow-hidden">
-      {user.apiKey && user.apiKey.length > 10 && <AIAssistant user={user} />}
+      {!hasNoApiKey && <AIAssistant user={user} />}
 
       {showProfileModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[250] flex items-center justify-center p-4">
@@ -153,7 +160,7 @@ const App: React.FC = () => {
                 <div className="p-2.5 bg-blue-600 text-white rounded-2xl shadow-lg"><UserIcon size={20} /></div>
                 <div>
                   <h3 className="text-lg font-black text-slate-900 uppercase">Profil & API Key</h3>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Update Data Mandiri</p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Update Data Pribadi</p>
                 </div>
               </div>
               <button onClick={() => setShowProfileModal(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all"><X size={24} /></button>
@@ -161,18 +168,18 @@ const App: React.FC = () => {
             <div className="p-8 space-y-5">
               <div><label className="block text-[10px] font-black text-slate-400 uppercase mb-2 ml-1">Nama Lengkap</label><input className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-sm font-bold uppercase outline-none focus:ring-2 focus:ring-blue-600" value={profileFormData.name} onChange={e => setProfileFormData({...profileFormData, name: e.target.value})} /></div>
               <div className="p-5 bg-indigo-50 border border-indigo-100 rounded-3xl space-y-3">
-                <label className="flex items-center gap-2 text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1"><Key size={14}/> Gemini API Key (Flash 3)</label>
+                <label className="flex items-center gap-2 text-[10px] font-black text-indigo-600 uppercase tracking-widest ml-1"><Key size={14}/> Gemini API Key Pribadi</label>
                 <div className="relative">
-                  <input type={showKey ? "text" : "password"} className="w-full bg-white border border-indigo-200 rounded-xl py-3 pl-4 pr-12 text-xs font-mono font-bold focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="AIzaSyB..." value={profileFormData.apiKey} onChange={e => setProfileFormData({...profileFormData, apiKey: e.target.value})} />
+                  <input type={showKey ? "text" : "password"} className="w-full bg-white border border-indigo-200 rounded-xl py-3 pl-4 pr-12 text-xs font-mono font-bold focus:ring-2 focus:ring-indigo-500 outline-none" placeholder="Salin dari Google AI Studio..." value={profileFormData.apiKey} onChange={e => setProfileFormData({...profileFormData, apiKey: e.target.value})} />
                   <button onClick={() => setShowKey(!showKey)} className="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-400">{showKey ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
                 </div>
-                <p className="text-[9px] text-indigo-400 font-medium leading-relaxed italic">Wajib menggunakan API Key sendiri untuk akses fitur AI.</p>
+                <p className="text-[9px] text-indigo-400 font-medium leading-relaxed italic">Harap masukkan kunci Anda sendiri. Penggunaan kunci sekolah telah diblokir demi keamanan data masing-masing guru.</p>
               </div>
             </div>
             <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
               <button onClick={() => setShowProfileModal(false)} className="flex-1 px-6 py-4 rounded-2xl text-xs font-black text-slate-500 bg-white border border-slate-200">BATAL</button>
               <button onClick={handleSaveProfile} disabled={isSavingProfile} className="flex-1 px-6 py-4 rounded-2xl text-xs font-black text-white bg-blue-600 shadow-xl flex items-center justify-center gap-2 active:scale-95 transition-all">
-                {isSavingProfile ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} AKTIFKAN KUNCI
+                {isSavingProfile ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />} SIMPAN & AKTIFKAN
               </button>
             </div>
           </div>
@@ -185,11 +192,11 @@ const App: React.FC = () => {
             <div className="p-8 text-center">
               <div className="w-16 h-16 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center mb-6 mx-auto"><AlertTriangle size={32} /></div>
               <h3 className="text-xl font-black text-slate-900 uppercase mb-2">Konfirmasi Keluar</h3>
-              <p className="text-slate-500 font-medium text-sm">Apakah Anda yakin ingin keluar?</p>
+              <p className="text-slate-500 font-medium text-sm">Anda akan keluar dari database cloud.</p>
             </div>
             <div className="p-4 bg-slate-50 flex gap-3">
               <button onClick={() => setShowLogoutConfirm(false)} className="flex-1 px-6 py-3 rounded-xl text-xs font-black text-slate-500 bg-white border border-slate-200">BATAL</button>
-              <button onClick={handleLogout} className="flex-1 px-6 py-3 rounded-xl text-xs font-black text-white bg-red-600">YA, KELUAR</button>
+              <button onClick={handleLogout} className="flex-1 px-6 py-3 rounded-xl text-xs font-black text-white bg-red-600">KELUAR</button>
             </div>
           </div>
         </div>
@@ -203,7 +210,7 @@ const App: React.FC = () => {
               <div className="p-2.5 bg-blue-600 rounded-xl text-white shadow-lg"><School size={24} /></div>
               <div>
                 <h1 className="text-sm font-black text-slate-900 uppercase">SDN 5 BILATO</h1>
-                <p className="text-[10px] text-blue-600 font-bold uppercase mt-1">Sistem Perangkat AI</p>
+                <p className="text-[10px] text-blue-600 font-bold uppercase mt-1">Sistem Perangkat Guru</p>
               </div>
             </div>
           </div>
@@ -235,7 +242,7 @@ const App: React.FC = () => {
                 <p className="text-xs font-black text-slate-900 truncate uppercase">{user.name}</p>
                 <div className="flex items-center gap-1">
                   <div className={`w-1.5 h-1.5 rounded-full ${hasNoApiKey ? 'bg-red-500' : 'bg-emerald-500'}`}></div>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase">{hasNoApiKey ? 'NO KEY' : 'PRIBADI AKTIF'}</p>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase">{hasNoApiKey ? 'KUNCI MATI' : 'KUNCI AKTIF'}</p>
                 </div>
               </div>
             </button>
@@ -254,6 +261,12 @@ const App: React.FC = () => {
               <span className="text-slate-900">{navItems.find(i => i.id === activeMenu)?.label}</span>
             </div>
           </div>
+          <div className="flex items-center gap-3">
+             <div className={`px-4 py-1.5 rounded-full border flex items-center gap-2 transition-all ${hasNoApiKey ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-emerald-50 border-emerald-100 text-emerald-600'}`}>
+                {hasNoApiKey ? <ShieldAlert size={14}/> : <ShieldCheck size={14}/>}
+                <span className="text-[9px] font-black uppercase tracking-widest">{hasNoApiKey ? 'Akses AI Terkunci' : 'Mode Kunci Pribadi Aktif'}</span>
+             </div>
+          </div>
         </header>
 
         <main className="flex-1 overflow-y-auto custom-scrollbar p-4 lg:p-8">
@@ -261,21 +274,21 @@ const App: React.FC = () => {
             {isCurrentMenuRestricted ? (
               <div className="flex flex-col items-center justify-center py-32 text-center animate-in fade-in zoom-in-95 duration-500">
                  <div className="w-24 h-24 bg-rose-100 text-rose-600 rounded-[40px] flex items-center justify-center mb-8 shadow-xl shadow-rose-200/50"><ShieldAlert size={48}/></div>
-                 <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-4">Akses Dibatasi (Kunci Pribadi Wajib)</h2>
+                 <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight mb-4">API Key Pribadi Wajib Diisi</h2>
                  <p className="text-slate-500 font-medium max-w-md leading-relaxed mb-8">
-                    Menu ini membutuhkan <b>Gemini API Key pribadi</b> Anda. Sistem tidak lagi mengizinkan penggunaan kunci sekolah untuk mencegah error kuota (Limit 0).
+                    Maaf, sistem mendeteksi Anda belum mengisi <b>API Key pribadi</b> di Profil. Sesuai kebijakan SDN 5 Bilato, setiap guru wajib menggunakan kuota pribadi masing-masing.
                  </p>
                  <div className="bg-white border border-slate-200 p-6 rounded-3xl shadow-sm mb-8 text-left max-w-md w-full">
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Info size={14} className="text-blue-500"/> Cara Mengaktifkan:</h4>
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2"><Info size={14} className="text-blue-500"/> Solusi Masalah:</h4>
                     <ul className="space-y-3 text-[11px] font-bold text-slate-600">
-                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">1</span><span>Buka Profil Anda dengan tombol di bawah.</span></li>
-                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">2</span><span>Paste API Key dari <b>Google AI Studio</b>.</span></li>
-                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">3</span><span>Seluruh fitur perangkat akan otomatis terbuka.</span></li>
+                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">1</span><span>Klik tombol <b>Set API Key Saya</b> di bawah ini.</span></li>
+                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">2</span><span>Sistem SDN 5 Bilato akan otomatis menggunakan model <b>Flash 3</b> yang lebih handal.</span></li>
+                       <li className="flex gap-3"><span className="w-5 h-5 bg-blue-50 text-blue-600 rounded flex items-center justify-center shrink-0">3</span><span>Error "Limit 0" atau "Pro-Model Restricted" akan hilang selamanya.</span></li>
                     </ul>
                  </div>
                  <div className="flex flex-col sm:flex-row gap-3">
                     <button onClick={() => setActiveMenu('DASHBOARD')} className="px-8 py-4 rounded-2xl text-xs font-black text-slate-500 bg-white border border-slate-200 hover:bg-slate-50 transition-all">KEMBALI</button>
-                    <button onClick={() => setShowProfileModal(true)} className="bg-blue-600 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl flex items-center gap-2"><Key size={16}/> SET API KEY PRIBADI</button>
+                    <button onClick={() => setShowProfileModal(true)} className="bg-blue-600 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-all shadow-xl flex items-center gap-2"><Key size={16}/> SET API KEY SAYA</button>
                  </div>
               </div>
             ) : (

@@ -3,51 +3,49 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { UploadedFile } from "../types";
 
 /**
- * PENTING: Aplikasi ini menggunakan model FLASH 3 PREVIEW.
- * Model ini memiliki kuota gratis (Free Tier) yang jauh lebih besar dan stabil
- * dibandingkan versi Pro yang sering terkena batasan 'Limit 0'.
+ * PENTING: SDN 5 Bilato Cloud hanya menggunakan model FLASH.
+ * Model Pro dilarang karena sering terkena 'Limit 0' pada akun gratis.
  */
 const MODEL_NAME = 'gemini-3-flash-preview';
 
-// Fungsi pembantu untuk membersihkan string dari blok kode markdown
 const cleanJsonString = (str: string): string => {
   if (!str) return '';
   return str.replace(/```json/g, '').replace(/```/g, '').trim();
 };
 
 /**
- * Memformat pesan error dari AI agar lebih mudah dibaca oleh guru
+ * Handler Error Manusiawi:
+ * Jika Google mengembalikan JSON error (seperti di screenshot user),
+ * fungsi ini akan memotongnya dan memberikan instruksi perbaikan.
  */
 const formatAIError = (error: any): string => {
-  console.error("Gemini API Error Detail:", error);
   const errorStr = typeof error === 'string' ? error : (error?.message || "");
-  
-  if (errorStr === 'API_KEY_REQUIRED') {
-    return "AKSES DITOLAK: Anda belum memasukkan API Key pribadi di menu Profil. Fitur AI tidak dapat dijalankan tanpa kunci Anda sendiri.";
+  console.error("DEBUG AI ERROR:", errorStr);
+
+  if (errorStr.includes('Limit: 0') || errorStr.includes('GEMINI-3-PRO')) {
+    return "MODEL DIBATASI: Akun Google Anda melarang penggunaan model Pro. Sistem telah kami paksa ke model Flash, namun pastikan API Key Anda benar-benar valid dan baru.";
   }
 
-  if (errorStr.includes('429') || errorStr.includes('QUOTA_EXCEEDED') || errorStr.includes('RESOURCE_EXHAUSTED')) {
-    return "KUOTA ANDA HABIS: Batas penggunaan gratis pada API Key Anda telah tercapai. Silakan coba lagi dalam 1 menit atau gunakan kunci lain.";
-  }
-  
-  if (errorStr.includes('403') || errorStr.includes('API_KEY_INVALID')) {
-    return "KUNCI TIDAK VALID: API Key yang Anda masukkan di Profil salah atau tidak aktif. Silakan ambil ulang kunci dari Google AI Studio.";
+  if (errorStr.includes('429') || errorStr.includes('QUOTA')) {
+    return "KUOTA HABIS: Batas gratis API Key Anda sudah tercapai untuk menit ini. Tunggu 60 detik lalu coba lagi.";
   }
 
-  return `GANGGUAN SISTEM: ${errorStr}`;
+  if (errorStr.includes('API_KEY_REQUIRED') || errorStr.includes('INVALID_API_KEY')) {
+    return "KUNCI WAJIB: Anda belum memasukkan API Key pribadi yang valid di Profil. Fitur AI dikunci.";
+  }
+
+  return "GANGGUAN KONEKSI: Pastikan API Key Anda benar. Jika masih gagal, ambil kunci baru di Google AI Studio.";
 };
 
 /**
- * LOGIKA PENGUNCIAN TOTAL:
- * Fungsi ini HANYA akan mengembalikan kunci jika customKey tersedia.
- * Tidak ada lagi pengambilan process.env.API_KEY untuk fitur perangkat guru.
+ * LOGIKA EKSTRA KETAT:
+ * Hanya menerima kunci dari user. Minimal 20 karakter.
+ * Tidak ada pengambilan dari process.env sama sekali.
  */
 const getApiKey = (customKey?: string) => {
-  if (customKey && typeof customKey === 'string' && customKey.trim().length > 10) {
+  if (customKey && typeof customKey === 'string' && customKey.trim().length > 20) {
     return customKey.trim();
   }
-  
-  // Jika tidak ada kunci kustom, lempar error khusus
   throw new Error('API_KEY_REQUIRED');
 };
 
@@ -65,17 +63,13 @@ export const analyzeDocuments = async (files: UploadedFile[], prompt: string, ap
   try {
     const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
     const fileParts = files.map(file => ({
-      inlineData: {
-        data: file.base64.split(',')[1],
-        mimeType: file.type
-      }
+      inlineData: { data: file.base64.split(',')[1], mimeType: file.type }
     }));
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
-      contents: { parts: [...fileParts, { text: prompt }] },
-      config: { systemInstruction: "Pakar kurikulum SD. Berikan analisis ringkas." }
+      contents: { parts: [...fileParts, { text: prompt }] }
     });
-    return response.text || "AI tidak memberikan respon.";
+    return response.text || "AI tidak merespon.";
   } catch (e) { throw new Error(formatAIError(e)); }
 };
 
@@ -84,7 +78,7 @@ export const analyzeCPToTP = async (cpContent: string, elemen: string, fase: str
     const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
-      contents: `Analisis CP ini menjadi TP untuk SD Kelas ${kelas}: "${cpContent}".`,
+      contents: `Analisis CP ini menjadi TP SD Kelas ${kelas}: "${cpContent}"`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -110,7 +104,7 @@ export const completeATPDetails = async (tp: string, materi: string, kelas: stri
     const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
-      contents: `Lengkapi ATP SD Kelas ${kelas}. TP: "${tp}" | Materi: "${materi}".`,
+      contents: `Lengkapi detail ATP SD Kelas ${kelas} materi ${materi} untuk TP: ${tp}`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -136,7 +130,7 @@ export const recommendPedagogy = async (tp: string, alurAtp: string, materi: str
     const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
-      contents: `Berikan model pembelajaran untuk TP: "${tp}"`,
+      contents: `Rekomendasi model pembelajaran untuk TP: ${tp}`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -155,11 +149,10 @@ export const recommendPedagogy = async (tp: string, alurAtp: string, materi: str
 export const generateRPMContent = async (tp: string, materi: string, kelas: string, praktikPedagogis: string, alokasiWaktu: string, jumlahPertemuan: number = 1, apiKey?: string) => {
   try {
     const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
-    const prompt = `Susun RPM SD Kelas ${kelas}. TP: "${tp}", Materi: "${materi}".`;
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
-      contents: prompt,
-      config: { 
+      contents: `Susun RPM mendalam untuk TP: ${tp}. Model: ${praktikPedagogis}`,
+      config: {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -183,8 +176,8 @@ export const generateAssessmentDetails = async (tp: string, materi: string, kela
     const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
-      contents: `Susun asesmen untuk TP: "${tp}".`,
-      config: { 
+      contents: `Buat instrumen asesmen untuk TP: ${tp}`,
+      config: {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.ARRAY,
@@ -211,8 +204,8 @@ export const generateLKPDContent = async (rpm: any, apiKey?: string) => {
     const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
-      contents: `Buat LKPD dari TP: "${rpm.tujuanPembelajaran}".`,
-      config: { 
+      contents: `Buat LKPD dari TP: ${rpm.tujuanPembelajaran}`,
+      config: {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -235,7 +228,7 @@ export const generateIndikatorSoal = async (item: any, apiKey?: string) => {
     const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
-      contents: `Buat indikator soal untuk: "${item.tujuanPembelajaran}".`
+      contents: `Buat 1 indikator soal untuk TP: ${item.tujuanPembelajaran}`
     });
     return response.text?.trim() || "";
   } catch (e) { throw new Error(formatAIError(e)); }
@@ -244,10 +237,9 @@ export const generateIndikatorSoal = async (item: any, apiKey?: string) => {
 export const generateButirSoal = async (item: any, apiKey?: string) => {
   try {
     const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
-    const prompt = `Buat soal SD Kelas ${item.kelas} Indikator: "${item.indikatorSoal}" Bentuk: "${item.bentukSoal}".`;
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
-      contents: prompt,
+      contents: `Buat 1 soal SD Kelas ${item.kelas} Indikator: ${item.indikatorSoal}`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -269,8 +261,8 @@ export const generateJurnalNarasi = async (item: any, matchingRpm: any, apiKey?:
     const ai = new GoogleGenAI({ apiKey: getApiKey(apiKey) });
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
-      contents: `Narasi jurnal SD Kelas ${item.kelas} materi ${item.materi}.`,
-      config: { 
+      contents: `Buat narasi jurnal harian materi ${item.materi}`,
+      config: {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
